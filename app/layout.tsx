@@ -51,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="footer-col">
               <h4>Company</h4>
               <Link href="/(main)/privacy">Privacy Policy</Link>
+              <a href="/(main)/refund">Refund Policy</a>
               <a href="#">Terms of Service</a>
               <a href="#">Blog</a>
               <a href="#">About</a>
