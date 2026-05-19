@@ -40,7 +40,7 @@ export default function DashboardPage() {
       <div className="card" style={{ marginBottom: '2rem', padding: '1.8rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-dark)' }}>Monthly Usage</h3>
-          <Link href="/(main)/billing" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontSize: '0.88rem', fontWeight: 500 }}>
+          <Link href="/billing" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontSize: '0.88rem', fontWeight: 500 }}>
             Buy credits <ArrowRight size={14} />
           </Link>
         </div>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
 
       {/* Quick links */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
-        <Link href="/(main)/models" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.5rem', textDecoration: 'none' }}>
+        <Link href="/models" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.5rem', textDecoration: 'none' }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(37,99,235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Key size={20} color="var(--primary)" />
           </div>
@@ -87,7 +87,7 @@ export default function DashboardPage() {
           </div>
           <ArrowRight size={18} style={{ marginLeft: 'auto', color: 'var(--text-gray)' }} />
         </Link>
-        <Link href="/(main)/billing" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.5rem', textDecoration: 'none' }}>
+        <Link href="/billing" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.5rem', textDecoration: 'none' }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <CreditCard size={20} color="var(--success)" />
           </div>

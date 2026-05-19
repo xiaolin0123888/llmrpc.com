@@ -1,13 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Key, CreditCard, Users, Settings, Globe } from 'lucide-react'
+import { LayoutDashboard, Key, CreditCard, Users, Settings } from 'lucide-react'
 
 const MENU = [
-  { href: '/(main)/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/(main)/models', label: 'API Keys', icon: Key },
-  { href: '/(main)/billing', label: 'Billing', icon: CreditCard },
-  { href: '/(main)/referrals', label: 'Referrals', icon: Users },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/models', label: 'API Keys', icon: Key },
+  { href: '/billing', label: 'Billing', icon: CreditCard },
+  { href: '/referrals', label: 'Referrals', icon: Users },
 ]
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +32,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           ))}
         </nav>
         <div style={{ position: 'absolute', bottom: '1.5rem', width: 'calc(100% - 3rem)' }}>
-          <Link href="/(main)/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.85rem 1rem', borderRadius: '8px', color: 'var(--text-gray)', fontSize: '0.9rem', fontWeight: 500 }}>
+          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.85rem 1rem', borderRadius: '8px', color: 'var(--text-gray)', fontSize: '0.9rem', fontWeight: 500 }}>
             <Settings size={17} /> Settings
           </Link>
           <div style={{ padding: '0.85rem 1rem', borderRadius: '8px', marginTop: '0.5rem', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -51,7 +51,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <a href="/" style={{ fontSize: '0.88rem', color: 'var(--text-gray)' }}>← Back to home</a>
-            <Link href="/(auth)/login" style={{ fontSize: '0.88rem', color: 'var(--primary)', fontWeight: 500 }}>Sign out</Link>
+            <Link href="/login" style={{ fontSize: '0.88rem', color: 'var(--primary)', fontWeight: 500 }}>Sign out</Link>
           </div>
         </div>
         {children}

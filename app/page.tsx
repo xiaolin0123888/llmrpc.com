@@ -60,7 +60,7 @@ export default function HomePage() {
           <Link href="/(auth)/register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
             Get Started Free <ArrowRight size={16} />
           </Link>
-          <Link href="/(main)/dashboard" className="btn-outline">
+          <Link href="/dashboard" className="btn-outline">
             View Documentation
           </Link>
         </div>
@@ -105,7 +105,7 @@ export default function HomePage() {
           ))}
         </div>
         <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-          <Link href="/(main)/models" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 500, fontSize: '0.95rem' }}>
+          <Link href="/models" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 500, fontSize: '0.95rem' }}>
             View all models <ChevronRight size={16} />
           </Link>
         </div>
