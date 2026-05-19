@@ -15,10 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <nav className="navbar">
           <a href="/" className="logo">LLM<span>Rpc</span></a>
           <div className="nav-menu">
-            <Link href="/(main)/models">Models</Link>
-            <Link href="/(main)/billing">Pricing</Link>
-            <Link href="/(main)/dashboard">Dashboard</Link>
-            <Link href="/(main)/dashboard">Docs</Link>
+            <Link href="/models">Models</Link>
+            <Link href="/billing">Pricing</Link>
+            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/dashboard">Docs</Link>
             <Link href="/(auth)/login" className="btn-outline">Sign In</Link>
             <Link href="/(auth)/register" className="btn-primary">Get Started</Link>
           </div>
@@ -36,22 +36,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="footer-col">
               <h4>Product</h4>
-              <Link href="/(main)/models">Models</Link>
-              <Link href="/(main)/billing">Pricing</Link>
-              <Link href="/(main)/dashboard">Dashboard</Link>
+              <Link href="/models">Models</Link>
+              <Link href="/billing">Pricing</Link>
+              <Link href="/dashboard">Dashboard</Link>
               <Link href="/(auth)/register">Get Started</Link>
             </div>
             <div className="footer-col">
               <h4>Developers</h4>
-              <Link href="/(main)/dashboard">Documentation</Link>
-              <Link href="/(main)/dashboard">API Reference</Link>
-              <Link href="/(main)/dashboard">Status</Link>
-              <Link href="/(main)/referrals">Affiliate Program</Link>
+              <Link href="/dashboard">Documentation</Link>
+              <Link href="/dashboard">API Reference</Link>
+              <Link href="/dashboard">Status</Link>
+              <Link href="/referrals">Affiliate Program</Link>
             </div>
             <div className="footer-col">
               <h4>Company</h4>
-              <Link href="/(main)/privacy">Privacy Policy</Link>
-              <a href="/(main)/refund">Refund Policy</a>
+              <Link href="/privacy">Privacy Policy</Link>
+              <a href="/refund">Refund Policy</a>
               <a href="#">Terms of Service</a>
               <a href="#">Blog</a>
               <a href="#">About</a>
