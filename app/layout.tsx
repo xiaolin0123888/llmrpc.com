@@ -52,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <h4>Company</h4>
               <Link href="/privacy">Privacy Policy</Link>
               <a href="/refund">Refund Policy</a>
-              <a href="#">Terms of Service</a>
+              <Link href="/terms">Terms of Service</Link>
               <a href="#">Blog</a>
               <a href="#">About</a>
             </div>
