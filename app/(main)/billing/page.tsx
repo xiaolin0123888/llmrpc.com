@@ -1,69 +1,134 @@
 'use client'
-import { useQuery } from '@tanstack/react-query'
-import { CreditCard, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { useState } from 'react'
+import { CreditCard, Check } from 'lucide-react'
 
 const PLANS = [
-  { name: 'Free', price: 0, tokens: '100,000', desc: 'Start for free', features: ['100,000 tokens', 'Basic models', '1 workspace'] },
-  { name: 'Basic', price: 9, tokens: '1,000,000', desc: 'For personal projects', features: ['1M tokens/month', 'All models', '3 workspaces', 'Email support'] },
-  { name: 'Pro', price: 29, tokens: '5,000,000', desc: 'For growing teams', features: ['5M tokens/month', 'All models + priority', '10 workspaces', 'API support'] },
-  { name: 'Enterprise', price: 99, tokens: '25,000,000', desc: 'Unlimited scale', features: ['25M tokens/month', 'Dedicated support', 'Unlimited workspaces', 'SLA guarantee'] },
+  {
+    name: 'Basic Free Plan',
+    price: '$0',
+    period: '/ Month',
+    desc: 'For new users to explore',
+    features: ['Limited daily calling quota', 'Partial mainstream model access', 'Ordinary global common nodes', 'Standard response speed'],
+    cta: 'Current Using',
+    hot: false,
+  },
+  {
+    name: 'Starter Premium',
+    price: '$29.9',
+    period: '/ Month',
+    desc: 'For individual developers',
+    features: ['Large monthly token quota', 'All models full open access', 'Priority low latency dedicated nodes', 'Higher concurrency support', 'Fast priority technical support'],
+    cta: 'Upgrade Now',
+    hot: true,
+  },
+  {
+    name: 'Enterprise Ultimate',
+    price: '$99.9',
+    period: '/ Month',
+    desc: 'For teams and businesses',
+    features: ['Nearly unlimited token consumption', 'Exclusive enterprise private nodes', 'Ultra low delay global line', 'Unlimited high concurrent requests', 'One-on-one exclusive technical docking'],
+    cta: 'Contact Subscribe',
+    hot: false,
+  },
 ]
 
-export default function Billing() {
-  const { data } = useQuery({ queryKey: ['credits'], queryFn: async () => { const r = await fetch('/api/credits'); return r.json() } })
+const AMOUNTS = ['$10', '$20', '$50', '$100', '$200', '$500']
+
+export default function BillingPage() {
+  const [balance] = useState('$48.20')
+  const [selected, setSelected] = useState('$50')
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L12 12l4.179-2.25m0 0L16.75 12l-4.179 2.25" /></svg>
-            <span className="text-lg font-semibold">LLMCluster</span>
+    <div>
+      {/* Balance */}
+      <div className="card" style={{ padding: '1.8rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.88rem', color: 'var(--text-gray)', marginBottom: '0.4rem' }}>Account Balance</div>
+            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-dark)' }}>{balance}</div>
           </div>
-          <nav className="flex items-center gap-8 text-sm text-zinc-400">
-            <a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a>
-            <a href="/models" className="hover:text-white transition-colors">Models</a>
-            <a href="/billing" className="text-white transition-colors">Billing</a>
-            <a href="/referrals" className="hover:text-white transition-colors">Referrals</a>
-          </nav>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button className="btn-primary" style={{ padding: '0.7rem 1.5rem' }}>Withdraw</button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold mb-2">Billing</h1>
-          <p className="text-sm text-zinc-400">Current balance: <span className="text-white font-medium">{(data?.credits || 0).toLocaleString()}</span> tokens</p>
-        </div>
-
-        <div className="grid md:grid-cols-4 gap-4 mb-12">
-          {PLANS.map(plan => (
-            <div key={plan.name} className={`p-6 rounded-xl border ${plan.name === 'Pro' ? 'border-blue-500 bg-blue-500/5' : 'border-white/10'} hover:border-white/20 transition-colors`}>
-              <p className="text-xs text-zinc-500 mb-1">{plan.name}</p>
-              <div className="flex items-baseline gap-1 mb-1"><span className="text-2xl font-semibold">${plan.price}</span><span className="text-zinc-500 text-sm">/mo</span></div>
-              <p className="text-xs text-zinc-400 mb-4">{plan.tokens} tokens/mo</p>
-              <button className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${plan.name === 'Pro' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border border-white/10 hover:bg-white/5'}`}>{(plan.price === 0) ? 'Current plan' : 'Subscribe'}</button>
+      {/* Plans */}
+      <div style={{ marginBottom: '2.5rem' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>Subscription Plans</h3>
+        <p style={{ color: 'var(--text-gray)', fontSize: '0.88rem', marginBottom: '1.5rem' }}>Choose a suitable plan to upgrade your API service experience</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
+          {PLANS.map((p) => (
+            <div
+              key={p.name}
+              className="card"
+              style={{ padding: '2rem', position: 'relative', borderColor: p.hot ? 'var(--primary)' : undefined }}
+            >
+              {p.hot && (
+                <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: 'var(--primary)', padding: '0.3rem 1rem', borderRadius: '20px', fontSize: '0.78rem', color: '#fff' }}>
+                  Most Popular
+                </div>
+              )}
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.8rem' }}>{p.name}</h3>
+              <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>{p.price}<span style={{ fontSize: '0.9rem', fontWeight: 400, color: 'var(--text-gray)' }}>{p.period}</span></div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-gray)', marginBottom: '1.5rem' }}>{p.desc}</p>
+              <ul style={{ listStyle: 'none', marginBottom: '1.8rem' }}>
+                {p.features.map((f) => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.88rem', color: 'var(--text-gray)', marginBottom: '0.6rem' }}>
+                    <Check size={14} color="var(--success)" /> {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                className={p.cta === 'Current Using' ? 'btn-outline' : 'btn-primary'}
+                style={{ width: '100%', padding: '0.8rem', fontSize: '0.92rem' }}
+              >
+                {p.cta}
+              </button>
             </div>
           ))}
         </div>
+      </div>
 
-        <div className="mb-6"><h2 className="text-lg font-medium mb-4">Transaction History</h2></div>
-        <div className="rounded-xl border border-white/10 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-white/10 text-left text-xs text-zinc-500"><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 font-medium">Amount</th><th className="px-4 py-3 font-medium">Description</th><th className="px-4 py-3 font-medium">Date</th></tr></thead>
-            <tbody>
-              {(data?.transactions || []).length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-sm">No transactions yet</td></tr>
-              ) : (data?.transactions || []).map((tx: any) => (
-                <tr key={tx.id} className="border-b border-white/5 last:border-0">
-                  <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${tx.type.includes('REFERRAL') ? 'bg-emerald-500/20 text-emerald-400' : tx.type === 'USAGE' ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-400'}`}>{tx.type.replace('_', ' ')}</span></td>
-                  <td className="px-4 py-3 font-mono">{tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-zinc-400">{tx.description}</td>
-                  <td className="px-4 py-3 text-zinc-500">{new Date(tx.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Recharge */}
+      <div className="card" style={{ padding: '1.8rem', maxWidth: '600px' }}>
+        <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>Recharge Credits</h3>
+        <p style={{ color: 'var(--text-gray)', fontSize: '0.88rem', marginBottom: '1.5rem' }}>Select an amount to top up</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+          {AMOUNTS.map((a) => (
+            <button
+              key={a}
+              onClick={() => setSelected(a)}
+              style={{
+                padding: '1rem',
+                borderRadius: '8px',
+                border: selected === a ? '2px solid var(--primary)' : '1px solid var(--border)',
+                background: selected === a ? 'rgba(37,99,235,0.06)' : 'var(--bg-card)',
+                color: 'var(--text-dark)',
+                fontSize: '1rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: '0.2s',
+              }}
+            >
+              {a}
+            </button>
+          ))}
         </div>
+        <div style={{ padding: '1rem', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+            <span style={{ color: 'var(--text-gray)', fontSize: '0.88rem' }}>Recharge amount</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-dark)' }}>{selected}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--text-gray)', fontSize: '0.88rem' }}>Payment method</span>
+            <span style={{ fontWeight: 500, color: 'var(--text-dark)' }}>Stripe</span>
+          </div>
+        </div>
+        <button className="btn-primary" style={{ width: '100%', padding: '0.9rem', fontSize: '1rem' }}>
+          <CreditCard size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
+          Proceed to Payment
+        </button>
       </div>
     </div>
   )

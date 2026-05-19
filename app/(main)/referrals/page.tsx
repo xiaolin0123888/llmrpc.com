@@ -1,76 +1,104 @@
 'use client'
-import { useQuery } from '@tanstack/react-query'
-import { Gift, Users, Zap, Copy, Check } from 'lucide-react'
 import { useState } from 'react'
+import { Gift, Copy, CheckCircle2, Users, DollarSign } from 'lucide-react'
 
-export default function Referrals() {
-  const { data } = useQuery({ queryKey: ['credits'], queryFn: async () => { const r = await fetch('/api/credits'); return r.json() } })
+const STATS = [
+  { label: 'Total Referrals', value: '12', icon: Users },
+  { label: 'Referral Earnings', value: '360 USD', icon: DollarSign },
+  { label: 'Commission Rate', value: '30%', icon: Gift },
+]
+
+export default function ReferralsPage() {
   const [copied, setCopied] = useState(false)
-  const copy = () => { navigator.clipboard.writeText(data?.referralCode || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const referralLink = 'https://llmrpc.com/register?ref=xiaolin0123888'
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(referralLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L12 12l4.179-2.25m0 0L16.75 12l-4.179 2.25" /></svg>
-            <span className="text-lg font-semibold">LLMCluster</span>
+    <div>
+      {/* Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)', borderRadius: '14px', padding: '2.5rem', color: '#fff', marginBottom: '2rem', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+            <Gift size={28} />
+            <span style={{ fontSize: '1.6rem', fontWeight: 700 }}>Invite and Earn</span>
           </div>
-          <nav className="flex items-center gap-8 text-sm text-zinc-400">
-            <a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a>
-            <a href="/models" className="hover:text-white transition-colors">Models</a>
-            <a href="/billing" className="hover:text-white transition-colors">Billing</a>
-            <a href="/referrals" className="text-white transition-colors">Referrals</a>
-          </nav>
+          <p style={{ fontSize: '1rem', opacity: 0.9, maxWidth: '500px', lineHeight: 1.6, marginBottom: '2rem' }}>
+            Invite friends to join LLMRpc and earn 30% commission on their all spending, forever.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '8px', padding: '0.8rem 1.2rem', fontFamily: 'monospace', fontSize: '0.9rem', flex: 1, maxWidth: '400px' }}>
+              {referralLink}
+            </div>
+            <button
+              onClick={copyLink}
+              style={{ background: '#fff', color: 'var(--primary)', padding: '0.8rem 1.5rem', borderRadius: '8px', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              {copied ? <><CheckCircle2 size={16} /> Copied!</> : <><Copy size={16} /> Copy Link</>}
+            </button>
+          </div>
+        </div>
+        <div style={{ position: 'absolute', right: '-30px', top: '-30px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
+        <div style={{ position: 'absolute', right: '40px', bottom: '-40px', width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+        {STATS.map((s) => (
+          <div key={s.label} className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1rem' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(37,99,235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <s.icon size={18} color="var(--primary)" />
+              </div>
+              <div style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>{s.label}</div>
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-dark)' }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* How it works */}
+      <div className="card" style={{ padding: '1.8rem', marginBottom: '2rem' }}>
+        <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '1.5rem' }}>How It Works</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem' }}>
+          {[
+            { num: '1', title: 'Share your link', desc: 'Copy your unique referral link and share it with friends' },
+            { num: '2', title: 'Friend signs up', desc: 'They create an account using your referral link' },
+            { num: '3', title: 'Earn commission', desc: 'Get 30% of all their spending, forever' },
+          ].map((step) => (
+            <div key={step.num} style={{ textAlign: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.8rem', fontSize: '1rem', fontWeight: 700 }}>
+                {step.num}
+              </div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.4rem' }}>{step.title}</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)', lineHeight: 1.6 }}>{step.desc}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold mb-2">Referral Program</h1>
-          <p className="text-sm text-zinc-400">Invite friends and earn 150,000 tokens for each referral who creates an account.</p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <div className="p-6 rounded-xl border border-white/10 bg-zinc-950 text-center">
-            <Users className="w-6 h-6 text-blue-500 mx-auto mb-3" />
-            <p className="text-2xl font-semibold mb-1">{data?.referralCount || 0}</p>
-            <p className="text-sm text-zinc-500">Friends invited</p>
-          </div>
-          <div className="p-6 rounded-xl border border-white/10 bg-zinc-950 text-center">
-            <Zap className="w-6 h-6 text-emerald-500 mx-auto mb-3" />
-            <p className="text-2xl font-semibold mb-1">{((data?.referralCount || 0) * 150000).toLocaleString()}</p>
-            <p className="text-sm text-zinc-500">Tokens earned</p>
-          </div>
-          <div className="p-6 rounded-xl border border-white/10 bg-zinc-950 text-center">
-            <Gift className="w-6 h-6 text-amber-500 mx-auto mb-3" />
-            <p className="text-2xl font-semibold mb-1">150,000</p>
-            <p className="text-sm text-zinc-500">Per referral</p>
-          </div>
-        </div>
-
-        <div className="p-6 rounded-xl border border-white/10 bg-zinc-950 mb-8">
-          <p className="text-sm text-zinc-400 mb-3">Your referral link</p>
-          <div className="flex gap-2">
-            <input type="text" readOnly value={data?.referralCode ? `https://llmcluster.com/register?ref=${data.referralCode}` : ''} className="flex-1 bg-zinc-900 border border-white/10 rounded-lg px-4 py-2.5 text-sm font-mono" />
-            <button onClick={copy} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm hover:bg-blue-700 transition-colors">{copied ? <><Check className="w-4 h-4" />Copied</> : <><Copy className="w-4 h-4" />Copy</>}</button>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 p-6">
-          <h2 className="text-sm font-medium mb-4">How it works</h2>
-          <div className="space-y-4">
-            {[
-              { step: '1', title: 'Share your link', desc: 'Send your unique referral link to friends who might be interested.' },
-              { step: '2', title: 'They register', desc: 'When a friend uses your link to create an account, they get 100,000 free tokens.' },
-              { step: '3', title: 'You earn tokens', desc: 'You instantly receive 150,000 tokens credited to your account.' },
-            ].map(s => (
-              <div key={s.step} className="flex items-start gap-4">
-                <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-500 text-xs flex items-center justify-center shrink-0 mt-0.5">{s.step}</span>
-                <div><p className="text-sm font-medium mb-0.5">{s.title}</p><p className="text-xs text-zinc-500">{s.desc}</p></div>
+      {/* Recent referrals */}
+      <div className="card" style={{ padding: '1.8rem' }}>
+        <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '1.2rem' }}>Recent Referrals</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+          {[
+            { user: 'alice@example.com', date: '2026-05-18', earnings: '12.50 USD' },
+            { user: 'bob@company.io', date: '2026-05-17', earnings: '28.00 USD' },
+            { user: 'carol.dev@gmail.com', date: '2026-05-15', earnings: '5.00 USD' },
+            { user: 'david.tech@outlook.com', date: '2026-05-14', earnings: '18.75 USD' },
+          ].map((r, i) => (
+            <div key={i} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '0.92rem', fontWeight: 500, color: 'var(--text-dark)' }}>{r.user}</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-gray)' }}>{r.date}</div>
               </div>
-            ))}
-          </div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--success)' }}>+{r.earnings}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

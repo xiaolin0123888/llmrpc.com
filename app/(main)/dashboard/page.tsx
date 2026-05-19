@@ -1,130 +1,102 @@
-'use client'
-import { useSession } from 'next-auth/react'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { Key, Plus, Trash2, Copy, Check, Zap, TrendingUp } from 'lucide-react'
-import { useState } from 'react'
+import Link from 'next/link'
+import { Key, TrendingUp, CreditCard, Activity, ArrowRight, Copy } from 'lucide-react'
 
-interface ApiKey {
-  id: string
-  name: string
-  prefix: string
-  workspace_id: string | null
-  last_used: string | null
-  created_at: string
-}
+const API_KEYS = [
+  { name: 'Production Key', key: 'sk-llmrpc-xH7kPm9qR2sT3vN5wY8zA', created: '2026-05-19', usage: '12.5M tokens' },
+  { name: 'Development Key', key: 'sk-llmrpc-dK4jL8mN1pQ6rS9tU2vW', created: '2026-05-18', usage: '3.2M tokens' },
+]
 
-interface CreditsData {
-  credits: number
-  referralCode: string
-  referralCount: number
-  transactions: any[]
-}
+const USAGE_DATA = [
+  { label: 'Today', value: '1.2M tokens', percent: 12 },
+  { label: 'This Week', value: '8.5M tokens', percent: 35 },
+  { label: 'This Month', value: '42.3M tokens', percent: 68 },
+]
 
-export default function Dashboard() {
-  const { data: session } = useSession()
-  const [newKeyName, setNewKeyName] = useState('')
-  const [showCreate, setShowCreate] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
-
-  const { data: keys } = useQuery<ApiKey[]>({ queryKey: ['keys'], queryFn: async () => { const r = await fetch('/api/keys'); return (await r.json()).keys }, initialData: [] })
-  const { data: creditsData } = useQuery<CreditsData>({ queryKey: ['credits'], queryFn: async () => { const r = await fetch('/api/credits'); return r.json() }, initialData: { credits: 0, referralCode: '', referralCount: 0, transactions: [] } })
-
-  const createKey = useMutation({
-    mutationFn: async () => {
-      const r = await fetch('/api/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newKeyName }) })
-      return r.json()
-    },
-    onSuccess: () => { setNewKeyName(''); setShowCreate(false); },
-  })
-
-  const deleteKey = useMutation({
-    mutationFn: async (id: string) => { await fetch('/api/keys?id=' + id, { method: 'DELETE' }) },
-    onSuccess: () => {},
-  })
-
-  const copyKey = (key: string) => {
-    navigator.clipboard.writeText(key)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 1500)
-  }
-
+export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L12 12l4.179-2.25m0 0L16.75 12l-4.179 2.25" /></svg>
-            <span className="text-lg font-semibold">LLMCluster</span>
+    <div>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
+        {[
+          { label: 'Total Credits', value: '$48.20', sub: 'Available', icon: CreditCard, color: 'var(--primary)' },
+          { label: 'Monthly Usage', value: '42.3M', sub: 'Tokens consumed', icon: TrendingUp, color: 'var(--success)' },
+          { label: 'API Keys', value: '2', sub: 'Active keys', icon: Key, color: 'var(--text-dark)' },
+          { label: 'Success Rate', value: '99.8%', sub: 'Last 30 days', icon: Activity, color: 'var(--success)' },
+        ].map((s) => (
+          <div key={s.label} className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1rem' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <s.icon size={18} color={s.color} />
+              </div>
+              <div style={{ color: 'var(--text-gray)', fontSize: '0.82rem' }}>{s.label}</div>
+            </div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-dark)' }}>{s.value}</div>
+            <div style={{ color: 'var(--text-gray)', fontSize: '0.78rem', marginTop: '0.3rem' }}>{s.sub}</div>
           </div>
-          <nav className="flex items-center gap-8 text-sm text-zinc-400">
-            <a href="/dashboard" className="text-white transition-colors">Dashboard</a>
-            <a href="/models" className="hover:text-white transition-colors">Models</a>
-            <a href="/billing" className="hover:text-white transition-colors">Billing</a>
-            <a href="/referrals" className="hover:text-white transition-colors">Referrals</a>
-          </nav>
-        </div>
+        ))}
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold mb-1">Dashboard</h1>
-          <p className="text-sm text-zinc-400">Welcome back, {session?.user?.name || session?.user?.email}</p>
+      {/* Usage bar */}
+      <div className="card" style={{ marginBottom: '2rem', padding: '1.8rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-dark)' }}>Monthly Usage</h3>
+          <Link href="/(main)/billing" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontSize: '0.88rem', fontWeight: 500 }}>
+            Buy credits <ArrowRight size={14} />
+          </Link>
         </div>
-
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <div className="md:col-span-2 p-6 rounded-xl border border-white/10 bg-zinc-950">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center"><Zap className="w-5 h-5 text-blue-500" /></div>
-              <div><p className="text-sm text-zinc-400">Available Credits</p><p className="text-2xl font-semibold">{(creditsData?.credits || 0).toLocaleString()}</p></div>
-            </div>
-            <div className="flex gap-6 text-xs text-zinc-500">
-              <span>Referral code: <span className="text-white font-mono">{(creditsData?.referralCode || '').slice(0, 16)}...</span></span>
-              <span>Referrals: <span className="text-white">{creditsData?.referralCount || 0}</span></span>
-            </div>
-          </div>
-          <div className="p-6 rounded-xl border border-white/10 bg-zinc-950">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-emerald-500" /></div>
-              <div><p className="text-sm text-zinc-400">API Status</p><p className="text-sm font-medium text-emerald-500">Active</p></div>
-            </div>
-            <p className="text-xs text-zinc-500">Your API keys are working. Start making requests.</p>
-          </div>
+        <div style={{ height: '8px', background: 'var(--bg-card)', borderRadius: '4px', marginBottom: '1.5rem' }}>
+          <div style={{ height: '100%', width: '68%', background: 'var(--primary)', borderRadius: '4px' }} />
         </div>
+        <div style={{ fontSize: '0.88rem', color: 'var(--text-gray)' }}>42.3M / 100M tokens used this month</div>
+      </div>
 
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-lg font-medium">API Keys</h2>
-          <button onClick={() => setShowCreate(!showCreate)} className="inline-flex items-center gap-1.5 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-            <Plus className="w-4 h-4" />New Key
-          </button>
+      {/* API Keys */}
+      <div className="card" style={{ padding: '1.8rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-dark)' }}>API Keys</h3>
+          <button className="btn-primary" style={{ padding: '0.5rem 1.2rem', fontSize: '0.88rem' }}>+ Create Key</button>
         </div>
-
-        {showCreate && (
-          <div className="mb-6 p-4 rounded-xl border border-white/10 bg-zinc-950 flex gap-3">
-            <input type="text" value={newKeyName} onChange={e => setNewKeyName(e.target.value)} placeholder="Key name (e.g. production)" className="flex-1 bg-zinc-900 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500" />
-            <button onClick={() => createKey.mutate()} disabled={!newKeyName || createKey.isPending} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">Create</button>
-            <button onClick={() => setShowCreate(false)} className="border border-white/10 px-4 py-2 rounded-lg text-sm hover:bg-white/5">Cancel</button>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {(keys || []).length === 0 ? (
-            <div className="text-center py-16 text-zinc-500 text-sm">No API keys yet. Create one to get started.</div>
-          ) : (keys || []).map((k: ApiKey) => (
-            <div key={k.id} className="flex items-center justify-between p-4 rounded-xl border border-white/10 hover:border-white/20 transition-colors">
-              <div className="flex items-center gap-4">
-                <Key className="w-4 h-4 text-zinc-500" />
-                <div>
-                  <p className="text-sm font-medium">{k.name}</p>
-                  <p className="text-xs text-zinc-500 font-mono">{k.prefix}...</p>
-                </div>
+        {API_KEYS.map((k) => (
+          <div key={k.name} style={{ padding: '1rem 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>{k.name}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: 'var(--text-gray)' }}>{k.key}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)' }}>{k.usage}</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-gray)' }}>Created {k.created}</div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-zinc-500">{k.last_used ? new Date(k.last_used).toLocaleDateString() : 'Never used'}</span>
-                <button onClick={() => deleteKey.mutate(k.id)} className="p-2 text-zinc-600 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-              </div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-gray)' }}>
+                <Copy size={16} />
+              </button>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick links */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
+        <Link href="/(main)/models" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.5rem', textDecoration: 'none' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(37,99,235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Key size={20} color="var(--primary)" />
+          </div>
+          <div>
+            <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>Manage API Keys</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)' }}>Create, edit and monitor your API keys</div>
+          </div>
+          <ArrowRight size={18} style={{ marginLeft: 'auto', color: 'var(--text-gray)' }} />
+        </Link>
+        <Link href="/(main)/billing" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.5rem', textDecoration: 'none' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CreditCard size={20} color="var(--success)" />
+          </div>
+          <div>
+            <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>Recharge Credits</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)' }}>Top up your account balance</div>
+          </div>
+          <ArrowRight size={18} style={{ marginLeft: 'auto', color: 'var(--text-gray)' }} />
+        </Link>
       </div>
     </div>
   )

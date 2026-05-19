@@ -1,16 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Shield, TrendingUp, Key, CheckCircle2, Zap, ChevronRight, Globe, Cpu, Star } from 'lucide-react'
-
-const PROVIDER_LOGOS = [
-  { name: 'Qwen', color: 'bg-orange-500' },
-  { name: 'DeepSeek', color: 'bg-blue-600' },
-  { name: 'GLM', color: 'bg-blue-500' },
-  { name: 'Mistral', color: 'bg-orange-400' },
-  { name: 'InternLM', color: 'bg-teal-500' },
-  { name: 'Yi', color: 'bg-yellow-500' },
-  { name: 'SDXL', color: 'bg-purple-500' },
-  { name: 'BAAI', color: 'bg-blue-400' },
-]
+import { ArrowRight, Shield, TrendingUp, Key, CheckCircle2, Zap, Globe, Cpu, Star, ChevronRight } from 'lucide-react'
 
 const STATS = [
   { value: '80T+', label: 'Monthly Tokens' },
@@ -24,19 +13,16 @@ const FEATURES = [
     title: 'Higher Availability',
     desc: 'Reliable AI models via distributed infrastructure. Fall back to other providers when one goes down.',
     icon: Shield,
-    img: '/api/placeholder/400/200',
   },
   {
     title: 'Price and Performance',
-    desc: 'Keep costs in check without sacrificing speed. Edge network for minimal latency.',
+    desc: 'Keep costs in check without sacrificing speed. Edge network for minimal latency worldwide.',
     icon: TrendingUp,
-    img: '/api/placeholder/400/200',
   },
   {
     title: 'API Key Management',
     desc: 'Create keys, set rate limits, monitor usage. Full control over your API access.',
     icon: Key,
-    img: '/api/placeholder/400/200',
   },
 ]
 
@@ -46,206 +32,133 @@ const STEPS = [
   { num: '3', title: 'Get Your API Key', desc: 'Create an API key and start making requests. OpenAI compatible.', icon: Key },
 ]
 
-const CODE = `from openai import OpenAI
+const MODELS = ['GPT-4o', 'Claude 3.5', 'Gemini Pro', 'Qwen 2.5', 'DeepSeek V3', 'GLM-4', 'Mistral', 'Yi Lightning']
 
-client = OpenAI(
-    api_key="sk-llmrpc-xxxx",
-    base_url="https://api.llmrpc.com/v1"
-)
+const CODE = `curl https://llmrpc.com/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`
 
-completion = client.chat.completions.create(
-    model="Qwen/Qwen2.5-72B-Instruct",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-
-print(completion.choices[0].message.content)`
-
-const FOOTER_LINKS = {
-  Product: ['Models', 'Rankings', 'Apps', 'Pricing', 'Enterprise'],
-  Company: ['About', 'Announcements', 'Careers', 'Privacy', 'Terms'],
-  Developer: ['Documentation', 'API Reference', 'SDK', 'Status'],
-  Connect: ['Discord', 'GitHub', 'X', 'YouTube'],
-}
-
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-white">
-      {/* Navigation */}
-      <header className="fixed top-0 inset-x-0 z-50 border-b border-[#1a1a1a] bg-[#0a0a0b]/95 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
-                <span className="text-black text-xs font-bold">LL</span>
-              </div>
-              <span className="font-semibold text-sm">LLMRpc</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
-              <Link href="/models" className="hover:text-white transition-colors">Models</Link>
-              <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
-              <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm text-zinc-400 hover:text-white transition-colors">Sign In</Link>
-            <Link href="/register" className="bg-white text-black px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-zinc-200 transition-colors">
-              Sign Up
-            </Link>
-          </div>
-        </div>
-      </header>
-
+    <div>
       {/* Hero */}
-      <section className="pt-32 pb-20 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 leading-tight">
-            The Unified Interface<br />For <span className="text-blue-400">100+ LLMs</span>
-          </h1>
-          <p className="text-lg text-zinc-400 mb-8 max-w-xl mx-auto">
-            Better prices, better uptime, no subscriptions. Access all major AI models through a single, unified API.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
-            <Link href="/register" className="inline-flex items-center gap-2 bg-white text-black px-6 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-200 transition-colors">
-              Get API Key <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link href="/models" className="inline-flex items-center gap-2 border border-[#333] px-6 py-3 rounded-lg text-sm text-zinc-300 hover:bg-white/5 transition-colors">
-              Explore Models
-            </Link>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
-            {STATS.map(({ value, label }) => (
-              <div key={label} className="text-center">
-                <div className="text-xl md:text-2xl font-bold text-white">{value}</div>
-                <div className="text-xs text-zinc-500">{label}</div>
-              </div>
-            ))}
-          </div>
+      <section className="section" style={{ textAlign: 'center', paddingTop: '8rem', paddingBottom: '6rem' }}>
+        <div style={{ display: 'inline-block', padding: '0.4rem 1rem', borderRadius: '20px', background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--text-gray)', marginBottom: '2rem' }}>
+          🚀 All models now available at up to 70% lower cost
         </div>
-      </section>
-
-      {/* Provider Logos */}
-      <section className="py-12 px-4 border-y border-[#1a1a1a]">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex flex-wrap justify-center gap-3">
-            {PROVIDER_LOGOS.map(({ name, color }) => (
-              <div key={name} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#111] border border-[#222]">
-                <div className={`w-5 h-5 rounded-full ${color}`} />
-                <span className="text-xs text-zinc-400">{name}</span>
-              </div>
-            ))}
-          </div>
+        <h1 style={{ fontSize: '3.2rem', fontWeight: 700, color: 'var(--text-dark)', lineHeight: 1.2, marginBottom: '1.2rem' }}>
+          Global Unified<br /><span style={{ color: 'var(--primary)' }}>AI API Gateway</span>
+        </h1>
+        <p style={{ fontSize: '1.1rem', color: 'var(--text-gray)', maxWidth: '640px', margin: '0 auto 2.5rem', lineHeight: 1.7 }}>
+          Access 100+ AI models through a single API endpoint. Prepaid credits and subscription plans. OpenAI compatible.
+        </p>
+        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '3.5rem' }}>
+          <Link href="/(auth)/register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            Get Started Free <ArrowRight size={16} />
+          </Link>
+          <Link href="/(main)/dashboard" className="btn-outline">
+            View Documentation
+          </Link>
         </div>
-      </section>
-
-      {/* One API */}
-      <section className="py-20 px-4">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">One API for Any Model</h2>
-            <p className="text-zinc-400 mb-6">
-              Access all major models through a single, unified interface. OpenAI SDK works out of the box.
-            </p>
-            <Link href="/docs" className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-sm">
-              Browse all <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="bg-[#111] rounded-xl border border-[#1a1a1a] overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1a1a1a] bg-[#0a0a0b]">
-              <div className="w-3 h-3 rounded-full bg-red-500/60" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-              <div className="w-3 h-3 rounded-full bg-green-500/60" />
-              <span className="text-xs text-zinc-600 ml-2">python</span>
+        <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          {STATS.map((s) => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.3rem' }}>{s.value}</div>
+              <div style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>{s.label}</div>
             </div>
-            <pre className="p-5 text-sm text-zinc-300 font-mono overflow-x-auto"><code>{CODE}</code></pre>
+          ))}
+        </div>
+      </section>
+
+      {/* Status Bar */}
+      <section style={{ padding: '0 6rem 5rem', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="status-bar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            <div className="status-dot" />
+            <span className="status-text">All systems operational</span>
+          </div>
+          <div style={{ display: 'flex', gap: '2rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', color: 'var(--text-gray)' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)' }} /> API Normal
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', color: 'var(--text-gray)' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)' }} /> Nodes Online
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', color: 'var(--text-gray)' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)' }} /> 99.9% Uptime
+            </span>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-20 px-4 border-t border-[#1a1a1a]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Everything you need</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {FEATURES.map(({ title, desc, icon: Icon, img }) => (
-              <div key={title} className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] overflow-hidden hover:border-[#2a2a2a] transition-colors">
-                <div className="h-40 bg-[#111] flex items-center justify-center">
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
-                    <Icon className="w-12 h-12 text-zinc-600" />
-                  </div>
-                </div>
-                <div className="p-5">
-                  <h3 className="font-semibold mb-2">{title}</h3>
-                  <p className="text-sm text-zinc-500">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Models */}
+      <section className="section" style={{ background: 'var(--bg-card)', paddingTop: '4rem', paddingBottom: '4rem' }}>
+        <div className="section-title" style={{ textAlign: 'center' }}>Supported Models</div>
+        <p style={{ textAlign: 'center', color: 'var(--text-gray)', marginBottom: '2.5rem' }}>Access all major AI providers through one unified API</p>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          {MODELS.map((m) => (
+            <span key={m} className="model-tag">{m}</span>
+          ))}
         </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-20 px-4 border-t border-[#1a1a1a]">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-4">Get started in minutes</h2>
-          <p className="text-zinc-400 text-center mb-12">Three simple steps to start building</p>
-          <div className="grid md:grid-cols-3 gap-8">
-            {STEPS.map(({ num, title, desc, icon: Icon }) => (
-              <div key={num} className="relative">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-[#111] border border-[#1a1a1a] flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-blue-400" />
-                  </div>
-                  <span className="text-4xl font-bold text-zinc-800">{num}</span>
-                </div>
-                <h3 className="font-semibold mb-2">{title}</h3>
-                <p className="text-sm text-zinc-500">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-20 px-4 border-t border-[#1a1a1a]">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to ship?</h2>
-          <p className="text-zinc-400 mb-8">Get 100,000 free tokens when you create an account. No credit card required.</p>
-          <Link href="/register" className="inline-flex items-center gap-2 bg-white text-black px-8 py-4 rounded-xl text-sm font-semibold hover:bg-zinc-200 transition-colors">
-            Create Free Account <ArrowRight className="w-4 h-4" />
+        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+          <Link href="/(main)/models" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 500, fontSize: '0.95rem' }}>
+            View all models <ChevronRight size={16} />
           </Link>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-[#1a1a1a] py-12 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-4 gap-8 mb-12">
-            {Object.entries(FOOTER_LINKS).map(([title, links]) => (
-              <div key={title}>
-                <h4 className="font-semibold text-sm mb-4">{title}</h4>
-                <ul className="space-y-2">
-                  {links.map(link => (
-                    <li key={link}>
-                      <Link href="#" className="text-sm text-zinc-500 hover:text-white transition-colors">{link}</Link>
-                    </li>
-                  ))}
-                </ul>
+      {/* Features */}
+      <section className="section" style={{ paddingTop: '5rem', paddingBottom: '5rem' }}>
+        <div className="section-title" style={{ textAlign: 'center' }}>Why LLMRpc?</div>
+        <p style={{ textAlign: 'center', color: 'var(--text-gray)', marginBottom: '3rem' }}>Everything you need to build AI-powered applications</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', maxWidth: '1100px', margin: '0 auto' }}>
+          {FEATURES.map((f) => (
+            <div key={f.title} className="card">
+              <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(37,99,235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.2rem' }}>
+                <f.icon size={22} color="var(--primary)" />
               </div>
-            ))}
-          </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-[#1a1a1a]">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-white flex items-center justify-center">
-                <span className="text-black text-[9px] font-bold">LL</span>
-              </div>
-              <span className="text-sm font-semibold">LLMRpc</span>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.7rem' }}>{f.title}</h3>
+              <p style={{ color: 'var(--text-gray)', fontSize: '0.92rem', lineHeight: 1.6 }}>{f.desc}</p>
             </div>
-            <p className="text-xs text-zinc-600">© 2026 LLMRpc. Powered by SiliconFlow.</p>
-          </div>
+          ))}
         </div>
-      </footer>
+      </section>
+
+      {/* How it works */}
+      <section className="section" style={{ background: 'var(--bg-card)', paddingTop: '4rem', paddingBottom: '4rem' }}>
+        <div className="section-title" style={{ textAlign: 'center' }}>Get Started in Minutes</div>
+        <p style={{ textAlign: 'center', color: 'var(--text-gray)', marginBottom: '3rem' }}>Three simple steps to start using AI models</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem', maxWidth: '900px', margin: '0 auto' }}>
+          {STEPS.map((s, i) => (
+            <div key={s.title} style={{ textAlign: 'center', position: 'relative' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.2rem', fontSize: '1.2rem', fontWeight: 700 }}>
+                {s.num}
+              </div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>{s.title}</h3>
+              <p style={{ color: 'var(--text-gray)', fontSize: '0.88rem', lineHeight: 1.6 }}>{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Code */}
+      <section className="section" style={{ paddingTop: '5rem', paddingBottom: '5rem' }}>
+        <div className="section-title" style={{ textAlign: 'center' }}>OpenAI Compatible</div>
+        <p style={{ textAlign: 'center', color: 'var(--text-gray)', marginBottom: '2rem' }}>Switch from OpenAI in one line of code</p>
+        <div className="code-box">
+          <div className="code-title">// cURL example</div>
+          <pre>{CODE}</pre>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+          <Link href="/(auth)/register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            Start Building <ArrowRight size={16} />
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }
