@@ -50,10 +50,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="footer-col">
               <h4>Company</h4>
-              <a href="#">About</a>
+              <Link href="/(main)/privacy">Privacy Policy</Link>
+              <a href="#">Terms of Service</a>
               <a href="#">Blog</a>
-              <a href="#">Privacy</a>
-              <a href="#">Terms</a>
+              <a href="#">About</a>
             </div>
           </div>
           <div style={{ textAlign: 'center', marginTop: '2.5rem', color: 'var(--text-gray)', fontSize: '0.88rem' }}>
