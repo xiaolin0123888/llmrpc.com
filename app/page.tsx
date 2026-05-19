@@ -57,7 +57,7 @@ export default function HomePage() {
           Access 100+ AI models through a single API endpoint. Prepaid credits and subscription plans. OpenAI compatible.
         </p>
         <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '3.5rem' }}>
-          <Link href="/(auth)/register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Link href="register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
             Get Started Free <ArrowRight size={16} />
           </Link>
           <Link href="/dashboard" className="btn-outline">
@@ -154,7 +154,7 @@ export default function HomePage() {
           <pre>{CODE}</pre>
         </div>
         <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
-          <Link href="/(auth)/register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Link href="register" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
             Start Building <ArrowRight size={16} />
           </Link>
         </div>

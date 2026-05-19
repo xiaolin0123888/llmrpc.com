@@ -19,8 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/billing">Pricing</Link>
             <Link href="/dashboard">Dashboard</Link>
             <Link href="/dashboard">Docs</Link>
-            <Link href="/(auth)/login" className="btn-outline">Sign In</Link>
-            <Link href="/(auth)/register" className="btn-primary">Get Started</Link>
+            <Link href="login" className="btn-outline">Sign In</Link>
+            <Link href="register" className="btn-primary">Get Started</Link>
           </div>
         </nav>
         <main style={{ paddingTop: '72px' }}>
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/models">Models</Link>
               <Link href="/billing">Pricing</Link>
               <Link href="/dashboard">Dashboard</Link>
-              <Link href="/(auth)/register">Get Started</Link>
+              <Link href="register">Get Started</Link>
             </div>
             <div className="footer-col">
               <h4>Developers</h4>

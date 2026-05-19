@@ -61,7 +61,7 @@ export default function RegisterPage() {
         </button>
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-gray)', fontSize: '0.9rem' }}>
-          Already have an account? <Link href="/(auth)/login" style={{ color: 'var(--primary)', fontWeight: 500 }}>Sign in</Link>
+          Already have an account? <Link href="login" style={{ color: 'var(--primary)', fontWeight: 500 }}>Sign in</Link>
         </div>
       </div>
 
