@@ -4,9 +4,8 @@ import type { NextRequest } from 'next/server'
 const PUBLIC_PATHS = ['/', '/login', '/register', '/models', '/billing', '/privacy', '/refund', '/terms', '/referrals', '/forgot-password', '/reset-password']
 const ADMIN_PATHS = ['/admin/login']
 const PUBLIC_API_PATHS = [
-  '/api/auth', '/api/login', '/api/register', '/api/models', '/api/proxy', '/api/credits', '/api/keys',
+  '/api/auth', '/api/login', '/api/register', '/api/models', '/api/plans', '/api/proxy', '/api/credits', '/api/keys',
   '/api/admin/login', '/v1/chat/completions',
-  // Admin API routes - auth handled by x-admin-token header
   '/api/admin/stats', '/api/admin/users', '/api/admin/orders', '/api/admin/plans',
   '/api/admin/keys', '/api/admin/announcements',
 ]
@@ -47,7 +46,9 @@ export function middleware(req: NextRequest) {
   if (ADMIN_PATHS.some(p => pathname === p)) return NextResponse.next()
 
   if (pathname.startsWith('/admin') && !ADMIN_PATHS.includes(pathname)) {
-    const adminToken = req.headers.get('x-admin-token')
+    const cookieHeader = req.headers.get('cookie') || ''
+    const cookies = parseCookies(cookieHeader)
+    const adminToken = req.headers.get('x-admin-token') || cookies['admin_token']
     if (!adminToken) return NextResponse.redirect(new URL('/admin/login', req.url))
     return NextResponse.next()
   }

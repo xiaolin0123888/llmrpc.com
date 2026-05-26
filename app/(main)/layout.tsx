@@ -9,7 +9,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }}>
       <nav className="navbar">
-        <a href="/dashboard" className="logo">LLM<span>Rpc</span></a>
+        <a href="/" className="logo">LLM<span>Rpc</span></a>
         <div className="nav-menu">
           <Link href="/dashboard">Dashboard</Link>
           <Link href="/models">Models</Link>

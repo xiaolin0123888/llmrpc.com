@@ -48,10 +48,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         position: 'fixed', height: '100vh', boxShadow: '2px 0 8px rgba(0,0,0,0.06)',
         borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', zIndex: 10,
       }}>
-        <div style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '2rem', color: '#1e293b', padding: '0 0.5rem' }}>
-          LLM<span style={{ color: '#2563eb' }}>Rpc</span>
-          <span style={{ fontSize: '0.65rem', background: '#2563eb', color: '#fff', padding: '0.2rem 0.45rem', borderRadius: 4, marginLeft: '0.4rem', fontWeight: 600 }}>Admin</span>
-        </div>
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '2rem', color: '#1e293b', padding: '0 0.5rem' }}>
+            LLM<span style={{ color: '#2563eb' }}>Rpc</span>
+            <span style={{ fontSize: '0.65rem', background: '#2563eb', color: '#fff', padding: '0.2rem 0.45rem', borderRadius: 4, marginLeft: '0.4rem', fontWeight: 600 }}>Admin</span>
+          </div>
+        </Link>
         <nav style={{ flex: 1 }}>
           {MENU.map(item => {
             const Icon = item.icon

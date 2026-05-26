@@ -1,9 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 export default function AdminLoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -24,7 +22,10 @@ export default function AdminLoginPage() {
       if (!res.ok) { setError(data.error ?? 'Login failed'); setLoading(false); return }
       localStorage.setItem('admin_token', data.token)
       localStorage.setItem('admin_email', data.email)
-      router.push('/admin/dashboard')
+      // Set cookie so middleware can read it
+      document.cookie = `admin_token=${data.token}; path=/; max-age=86400; sameSite=strict`
+      // Full page redirect ensures middleware sees the cookie
+      window.location.href = '/admin/dashboard'
     } catch { setError('Network error'); setLoading(false) }
   }
 
