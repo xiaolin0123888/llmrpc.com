@@ -32,18 +32,22 @@ export default async function ReferralsPage() {
           <p style={{ color: 'var(--text-gray)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>Your referral link:</p>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <input readOnly value={referrerLink} style={{ flex: 1, padding: '0.65rem 1rem', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-main)', color: 'var(--text-dark)', fontSize: '0.875rem' }} />
-                        <CopyButton text={referrerLink} />
+            <CopyButton text={referrerLink} />
           </div>
           <p style={{ color: 'var(--text-gray)', fontSize: '0.8rem', marginTop: '0.75rem' }}>You and your referral both earn credits when they sign up and make their first purchase.</p>
         </div>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-        {[['🎁', 'Give $5', 'Give $5 worth of credits'], ['🎁', 'Get $5', 'Get $5 credits when they purchase'], ['∞', 'No limit', 'Unlimited referrals']].map(([icon, title, desc]) => (
-          <div key={title} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.25rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{icon}</div>
-            <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>{title}</h3>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>{desc}</p>
+        {[
+          { icon: '🎁', title: 'Give 150K', desc: 'Give 150,000 credits to your referral' },
+          { icon: '🎁', title: 'Get 150K', desc: 'Get 150,000 credits when they purchase' },
+          { icon: '∞', title: 'No limit', desc: 'Unlimited referrals' },
+        ].map(f => (
+          <div key={f.title} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.25rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{f.icon}</div>
+            <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>{f.title}</h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>{f.desc}</p>
           </div>
         ))}
       </div>
