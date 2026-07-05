@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?
+  name          String?
+  githubId      String?   @unique
+  googleId      String?   @unique
+  avatarUrl     String?
+  credits       Int       @default(0) // Credits balance (in smallest unit, 1 credit = 1 token)
+  referralCode  String    @unique @default(cuid())
+  referredBy    String?   // User ID of referrer
+  referralCount Int       @default(0)
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  apiKeys       ApiKey[]
+  workspaces    Workspace[]
+  subscriptions Subscription[]
+  transactions  Transaction[]
+  referralsSent Referral[] @relation("Referrer")
+  referralsGot  Referral[] @relation("Referred")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  key         String   @unique @default(cuid()) // Hashed key shown to user once
+  prefix      String   // First 8 chars shown in UI
+  userId      String
+  workspaceId String?
+  lastUsed    DateTime?
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeys ApiKey[]
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  userId         String
+  plan           Plan     @default(FREE)
+  status         SubStatus @default(ACTIVE)
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  stripeSubId    String?  @unique
+  stripeCustomerId String?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Plan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SubStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  INCOMPLETE
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        TxType
+  amount      Int      // Positive for credit, negative for debit
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TxType {
+  REFERRAL_BONUS
+  REGISTER_BONUS
+  PURCHASE
+  SUBSCRIPTION
+  USAGE
+  REFUND
+}
+
+model Referral {
+  id         String   @id @default(cuid())
+  referrerId String
+  referredId String
+  reward     Int      @default(150000) // 150k tokens
+  status     RefStatus @default(PENDING)
+  createdAt  DateTime @default(now())
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id])
+  referred User @relation("Referred", fields: [referredId], references: [id])
+}
+
+enum RefStatus {
+  PENDING
+  CREDITED
+  CANCELLED
+}
+
+model Model {
+  id           String @id @default(cuid())
+  siliconflowId String @unique
+  name         String
+  provider     String
+  description  String
+  contextLen   Int
+  inputPrice   Float  // Price per million input tokens (USD)
+  outputPrice  Float  // Price per million output tokens (USD)
+  modalities   String[] // text, image, audio, video
+  category     String
+  isActive     Boolean @default(true)
+}

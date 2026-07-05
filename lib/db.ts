@@ -1,28 +1,34 @@
-import { Pool } from 'pg'
+import { PrismaClient } from '@prisma/client'
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-})
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
-export const query = (text: string, params?: any[]) =>
-  pool.query(text, params)
+export const prisma = globalForPrisma.prisma || new PrismaClient()
 
-export const getOne = async (text: string, params?: any[]) => {
-  const result = await pool.query(text, params)
-  return result.rows[0] || null
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+/** Raw SQL: return first row or null */
+export async function getOne<T = any>(
+  query: string,
+  params: any[] = []
+): Promise<T | null> {
+  const result: any = await prisma.$queryRawUnsafe(query, ...params)
+  return (result as any[])?.[0] ?? null
 }
 
-export const getAll = async (text: string, params?: any[]) => {
-  const result = await pool.query(text, params)
-  return result.rows
+/** Raw SQL: return all rows */
+export async function getAll<T = any>(
+  query: string,
+  params: any[] = []
+): Promise<T[]> {
+  const result: any = await prisma.$queryRawUnsafe(query, ...params)
+  return (result as any[]) ?? []
 }
 
-export const execute = async (text: string, params?: any[]) => {
-  const result = await pool.query(text, params)
-  return result.rowCount ?? result.rows.length
+/** Raw SQL: execute (INSERT/UPDATE/DELETE), returns row count */
+export async function execute(
+  query: string,
+  params: any[] = []
+): Promise<number> {
+  const result: any = await prisma.$executeRawUnsafe(query, ...params)
+  return result as number
 }
-
-export default pool

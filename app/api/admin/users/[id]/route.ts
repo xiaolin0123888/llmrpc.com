@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAll, getOne, execute } from '@/lib/db'
-
-function verify(req: NextRequest) {
-  const token = req.headers.get('x-admin-token')
-  if (!token) return false
-  try { const p = JSON.parse(Buffer.from(token, 'base64').toString()); return !!(p && p.id) } catch { return false }
-}
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!verify(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = requireAdmin(req)
+  if ('error' in auth) return auth.error
   try {
     const { id } = await params
     const user = await getOne(`
-      SELECT u.*, s.status as sub_status, s.plan, s.current_period_end,
+      SELECT u.id, u.email, u.name, u.credits, u.is_banned, u.is_admin, u.role,
+             u.created_at, u.updated_at, u.referral_code, u.referral_count,
+             u.referred_by, u.avatar_url, u.plan_name, u.quota_reset_at,
+             u.monthly_used::int as monthly_used,
+             s.status as sub_status, s.plan, s.current_period_end,
              COUNT(a.id)::int as key_count
       FROM users u LEFT JOIN subscriptions s ON s.user_id = u.id
                    LEFT JOIN api_keys a ON a.user_id = u.id
@@ -31,7 +31,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!verify(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = requireAdmin(req)
+  if ('error' in auth) return auth.error
   try {
     const { id } = await params
     const { action, amount } = await req.json()

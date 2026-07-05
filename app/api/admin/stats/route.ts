@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAll, getOne } from '@/lib/db'
-
-function verify(req: NextRequest) {
-  const token = req.headers.get('x-admin-token')
-  if (!token) return false
-  try { const p = JSON.parse(Buffer.from(token, 'base64').toString()); return !!(p && p.id) } catch { return false }
-}
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function GET(req: NextRequest) {
-  if (!verify(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = requireAdmin(req)
+  if ('error' in auth) return auth.error
   try {
     const now = new Date()
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const [totalUsers, todayNew, totalRevenue, activeKeys] = await Promise.all([
       getOne('SELECT COUNT(*)::int as c FROM users'),
       getOne('SELECT COUNT(*)::int as c FROM users WHERE created_at >= $1', [new Date(now.getFullYear(), now.getMonth(), now.getDate())]),
-      getOne('SELECT COALESCE(SUM(amount), 0)::numeric as t FROM orders WHERE status = $1', ['completed']),
+      getOne("SELECT COALESCE(SUM(amount), 0)::numeric as t FROM orders WHERE status = $1", ['completed']),
       getOne('SELECT COUNT(*)::int as c FROM api_keys'),
     ])
     const recentOrders = await getAll(`
