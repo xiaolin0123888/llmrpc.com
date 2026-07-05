@@ -40,8 +40,7 @@ export default function LoginClient() {
       localStorage.setItem('llm_user', JSON.stringify(data.user))
 
       const redirect = searchParams.get('redirect')
-      router.push(redirect || '/dashboard')
-      router.refresh()
+      window.location.href = '/dashboard'
     } catch (err) {
       console.error('Login error:', err)
       setError('Network error, please try again')
