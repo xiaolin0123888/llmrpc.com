@@ -47,7 +47,7 @@ export default function AdminLoginPage() {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '16px', textAlign: 'left' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@llmrpc.com" required style={{ width: '100%', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', color: '#111111', background: '#ffffff', outline: 'none', boxSizing: 'border-box' }} />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter admin email" required style={{ width: '100%', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', color: '#111111', background: '#ffffff', outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div style={{ marginBottom: '20px', textAlign: 'left' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Password</label>

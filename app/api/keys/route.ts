@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getAll } from '@/lib/db'
+import { getAll, execute, getOne } from '@/lib/db'
+import crypto from 'crypto'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -15,14 +16,16 @@ export async function POST(req: NextRequest) {
   try {
     const { name } = await req.json()
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
-    const crypto = await import('crypto')
-    const keyFull = `sk-llm-${crypto.randomBytes(24).toString('hex')}`
+    const keyFull = 'sk-llm-' + crypto.randomBytes(24).toString('hex')
     const keyHash = crypto.createHash('sha256').update(keyFull).digest('hex')
     const prefix = keyFull.slice(0, 12)
-    const { execute, getOne } = await import('@/lib/db')
     await execute(
-      'INSERT INTO api_keys (user_id, name, key_hash, prefix, key_full) VALUES ($1, $2, $3, $4, $5)',
-      [session.user.userId, name, keyHash, prefix, keyFull]
+      'INSERT INTO api_keys (user_id, name, key_hash, prefix) VALUES ($1, $2, $3, $4)',
+      [session.user.userId, name, keyHash, prefix]
+    )
+    await execute(
+      'INSERT INTO api_key_secrets (key_hash, encrypted_key) VALUES ($1, $2)',
+      [keyHash, encryptKey(keyFull)]
     )
     const key = await getOne('SELECT id FROM api_keys WHERE key_hash = $1', [keyHash])
     return NextResponse.json({ key_id: key.id, key: keyFull, prefix })
@@ -38,7 +41,15 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
-  const { execute } = await import('@/lib/db')
   await execute('DELETE FROM api_keys WHERE id = $1 AND user_id = $2', [id, session.user.userId])
   return NextResponse.json({ success: true })
+}
+
+function encryptKey(text: string): string {
+  const key = crypto.scryptSync(process.env.NEXTAUTH_SECRET!, 'llmcluster-salt', 32)
+  const iv = crypto.randomBytes(16)
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return Buffer.concat([iv, tag, encrypted]).toString('hex')
 }

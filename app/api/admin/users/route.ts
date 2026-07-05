@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAll, getOne } from '@/lib/db'
-
-function verify(req: NextRequest) {
-  const token = req.headers.get('x-admin-token')
-  if (!token) return false
-  try { const p = JSON.parse(Buffer.from(token, 'base64').toString()); return !!(p && p.id) } catch { return false }
-}
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function GET(req: NextRequest) {
-  if (!verify(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = requireAdmin(req)
+  if ('error' in auth) return auth.error
   try {
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
