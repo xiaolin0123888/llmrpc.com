@@ -158,6 +158,15 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* Logout */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.3rem' }}>Sign Out</h2>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-gray)', marginBottom: '1.2rem' }}>Sign out of your account</p>
+        <a href="/api/logout" style={{ display: 'inline-block', padding: '0.6rem 1.5rem', background: '#ef4444', color: '#fff', borderRadius: 8, fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>
+          Sign Out
+        </a>
+      </div>
+
       {/* Footer links */}
       <div style={{ textAlign: 'center', marginTop: '2rem', padding: '0 1rem', fontSize: '0.8rem', color: 'var(--text-gray)' }}>
         <span>© 2026 LLMRpc.com. All rights reserved.</span>
