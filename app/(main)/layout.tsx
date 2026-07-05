@@ -16,6 +16,9 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           <Link href="/billing">Pricing</Link>
           <Link href="/settings">Settings</Link>
         </div>
+        <Link href="/api/logout" style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: 'var(--text-gray)', textDecoration: 'none' }}>
+          Sign out
+        </Link>
       </nav>
       <main style={{ paddingTop: 72 }}>{children}</main>
     </div>
