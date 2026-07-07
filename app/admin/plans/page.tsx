@@ -8,8 +8,7 @@ export default function AdminPlansPage() {
   const [form, setForm] = useState({ name: '', price: '', monthly_quota: '', overage_rate: '0' })
   const [saving, setSaving] = useState(false)
   const fetchPlans = async () => {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch('/api/admin/plans', { headers: { 'x-admin-token': token ?? '' } })
+    const res = await fetch('/api/admin/plans')
     if (res.status === 401) { window.location.href = '/admin/login'; return }
     const data = await res.json(); setPlans(data.plans); setLoading(false)
   }
@@ -18,11 +17,10 @@ export default function AdminPlansPage() {
   const openEdit = (p: any) => { setEditPlan(p); setForm({ name: p.name, price: String(p.price), monthly_quota: String(p.monthly_quota), overage_rate: String(p.overage_rate ?? '0') }); setShowModal(true) }
   const handleSave = async () => {
     setSaving(true)
-    const token = localStorage.getItem('admin_token')
     const url = '/api/admin/plans'
     const method = editPlan ? 'PUT' : 'POST'
     const body = editPlan ? { ...form, id: editPlan.id, is_active: true } : form
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': token ?? '' }, body: JSON.stringify(body) })
+    await fetch(url)
     setShowModal(false); fetchPlans(); setSaving(false)
   }
   return (

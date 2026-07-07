@@ -19,17 +19,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token')
-    if (!token && pathname !== '/admin/login') {
-      router.push('/admin/login')
-    } else {
-      setChecking(false)
-    }
+    // Verify auth by hitting a lightweight endpoint
+    fetch('/api/admin/stats')
+      .then(r => {
+        if (r.ok) setChecking(false)
+        else router.push('/admin/login')
+      })
+      .catch(() => router.push('/admin/login'))
   }, [pathname])
 
   const handleLogout = () => {
-    localStorage.removeItem('admin_token')
-    localStorage.removeItem('admin_email')
     document.cookie = 'admin_token=; path=/; max-age=0';
     router.push('/admin/login')
   }

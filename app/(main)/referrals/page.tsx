@@ -5,7 +5,7 @@ import CopyButton from '@/components/CopyButton'
 
 export default async function ReferralsPage() {
   const session = await auth()
-  const user = session ? await getOne('SELECT referral_code, referral_count FROM users WHERE id = $1', [session.user.userId]) : null
+  const user = session ? await getOne('SELECT referral_code, referral_count FROM users WHERE id = $1', [session.user.id]) : null
   const referrerLink = user ? `${process.env.NEXT_PUBLIC_APP_URL}/register?ref=${user.referral_code}` : ''
 
   return (

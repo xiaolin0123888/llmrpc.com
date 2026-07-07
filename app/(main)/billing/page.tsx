@@ -29,6 +29,7 @@ function BillingContent() {
   const [loading, setLoading] = useState(true)
   const [purchasing, setPurchasing] = useState(false)
   const [paypalLoading, setPaypalLoading] = useState(false)
+  const [subscribeLoading, setSubscribeLoading] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -46,6 +47,39 @@ function BillingContent() {
       if (notifTimerRef.current) clearTimeout(notifTimerRef.current)
     }
   }, [])
+
+  // Handle Stripe return
+  useEffect(() => {
+    const stripe = searchParams.get('stripe')
+    if (!stripe) return
+    if (stripe === 'success') {
+      showNotification('success', 'Subscription activated! 🎉')
+    } else if (stripe === 'cancelled') {
+      showNotification('error', 'Subscription was cancelled.')
+    }
+    window.history.replaceState({}, '', '/billing')
+  }, [searchParams, showNotification])
+
+  const subscribeToPlan = useCallback(async (planName: string) => {
+    setSubscribeLoading(planName)
+    try {
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planName }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        showNotification('error', data.error || 'Failed to start subscription.')
+        setSubscribeLoading(null)
+      }
+    } catch {
+      showNotification('error', 'Network error. Please try again.')
+      setSubscribeLoading(null)
+    }
+  }, [showNotification])
 
   // Handle PayPal return
   const paypalHandledRef = useRef(false)
@@ -134,17 +168,18 @@ function BillingContent() {
   }, [showNotification])
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/credits').then(r => r.json()),
-      fetch('/api/plans').then(r => r.json()),
-    ]).then(([creditsData, plansData]) => {
+    // Independent fetches so one failure doesn't block the other
+    const loadCredits = fetch('/api/credits').then(r => r.json()).catch(() => ({}))
+    const loadPlans = fetch('/api/plans').then(r => r.json()).catch(() => ({ plans: [] }))
+
+    Promise.all([loadCredits, loadPlans]).then(([creditsData, plansData]) => {
       setCredits(creditsData.credits ?? 0)
       setCurrentPlan(creditsData.currentPlan || 'FREE')
       setTransactions(creditsData.transactions || [])
       setPlans(plansData.plans || [])
       if (creditsData.usage) setUsage(creditsData.usage)
       setLoading(false)
-    }).catch(() => setLoading(false))
+    })
   }, [])
 
   const isLoading = purchasing || paypalLoading
@@ -152,7 +187,7 @@ function BillingContent() {
   // Build display plans
   const displayPlans = [
     { id: 0, name: 'Free', price: 0, monthly_quota: 50000, overage_rate: 0, is_active: true, desc: 'For testing', isFree: true },
-    ...plans.filter((p: Plan) => p.is_active).map((p: Plan) => ({ ...p, desc: '' })),
+    ...plans.map((p: Plan) => ({ ...p, is_active: true, desc: "" })),
   ]
 
   const usagePercent = usage && usage.quota > 0 && isFinite(usage.quota)
@@ -166,31 +201,39 @@ function BillingContent() {
     return ''
   }
 
+  // Toast styles matching site look
+  const toastStyles = {
+    success: { background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' },
+    error: { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' },
+  }
+
   return (
     <div className="billing-container">
-      {/* Toast notification */}
+      {/* Toast */}
       {notification && (
-        <div className={`billing-toast ${notification.type}`}>
+        <div className="billing-toast" style={toastStyles[notification.type]}>
           {notification.msg}
         </div>
       )}
 
-      {/* Page header */}
+      {/* Header */}
       <div className="billing-header">
         <h1>Billing</h1>
-        <p>Manage your credits and subscription</p>
+        <p>Manage your membership and credits</p>
       </div>
 
-      {/* Credits balance */}
+      {/* Plan + Credits overview */}
       <div className="billing-balance">
-        <div className="billing-balance-label">Available Credits</div>
-        <div className="billing-balance-amount">
-          {loading ? '...' : credits.toLocaleString()}
+        <div className="billing-balance-label">Current Plan</div>
+        <div className="billing-balance-amount" style={{ fontSize: '2.5rem' }}>
+          {loading ? '...' : currentPlan}
         </div>
-        <div className="billing-balance-sub">tokens remaining</div>
+        <div className="billing-balance-sub">
+          {credits.toLocaleString()} credits remaining
+        </div>
       </div>
 
-      {/* Usage this period */}
+      {/* Usage bar */}
       {usage && isFinite(usage.quota) && (
         <div className="billing-usage">
           <div className="billing-usage-header">
@@ -208,7 +251,7 @@ function BillingContent() {
             />
           </div>
           {usagePercent && usagePercent > 80 && (
-            <p className={`billing-usage-hint ${usagePercent > 90 ? 'danger' : 'warning'}`}>
+            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', fontWeight: 500, color: usagePercent > 90 ? '#ef4444' : '#f59e0b' }}>
               {usagePercent >= 100
                 ? 'Quota exceeded — additional usage charged at overage rate'
                 : 'Approaching quota limit — consider upgrading'}
@@ -217,70 +260,140 @@ function BillingContent() {
         </div>
       )}
 
-      {/* Buy Credits */}
+      {/* ===== Membership Plans ===== */}
       <div className="billing-section">
-        <h2 className="billing-section-title">Buy Credits</h2>
-        <div className="billing-packages">
-          {CREDIT_PACKAGES.map(pkg => (
-            <div key={pkg.key} className="billing-package">
-              <div className="billing-pkg-name">{pkg.label}</div>
-              <div className="billing-pkg-price">{pkg.price}</div>
-              <div className="billing-pkg-btns">
-                <button
-                  className="billing-pkg-btn paypal"
-                  onClick={() => purchaseWithPayPal(pkg.key)}
-                  disabled={isLoading}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .76-.659h6.155c2.556 0 4.17.558 4.948 2.787.506 1.448.37 3.22-.37 4.545a5.513 5.513 0 0 1-3.037 2.863c-.98.371-2.036.558-3.137.558H8.833a.77.77 0 0 0-.758.658l-1.02 12.88a.64.640 0 1-.633.54l-.346.04z"/>
-                  </svg>
-                  PayPal
-                </button>
-              </div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <h2 className="billing-section-title" style={{ marginBottom: 0 }}>Membership Plans</h2>
+          <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.6rem', borderRadius: 99, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 600 }}>Monthly</span>
         </div>
-        <p className="billing-packages-note">
-          💳 PayPal payments are processed securely. Credits are added immediately after payment.
-        </p>
-      </div>
 
-      {/* Subscription Plans */}
-      <div className="billing-section">
-        <h2 className="billing-section-title">Subscription Plans</h2>
-        <div className="billing-plans">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
           {displayPlans.map((plan: any) => {
             const isCurrent = plan.name.toUpperCase() === currentPlan.toUpperCase()
+            const loadingPlan = subscribeLoading === plan.name
             return (
               <div
                 key={plan.id || plan.name}
-                className={`billing-plan${isCurrent ? ' current' : ''}${plan.isFree ? ' free' : ''}`}
+                className={`billing-plan${isCurrent ? ' current' : ''}`}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                  paddingTop: '1.75rem',
+                }}
               >
-                {isCurrent && <span className="billing-plan-badge">Current Plan</span>}
+                {/* Badge */}
+                {isCurrent && (
+                  <span style={{
+                    position: 'absolute', top: '-0.6rem', left: '50%', transform: 'translateX(-50%)',
+                    background: '#2563eb', color: '#fff', fontSize: '0.65rem', fontWeight: 700,
+                    padding: '0.15rem 0.8rem', borderRadius: 99, whiteSpace: 'nowrap',
+                  }}>
+                    CURRENT
+                  </span>
+                )}
+
+                {/* Icon */}
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>
+                  {plan.isFree ? '🔰' : plan.name === 'Basic' ? '⭐' : plan.name === 'Pro' ? '💎' : plan.name === 'Enterprise' ? '🏢' : '🚀'}
+                </div>
+
                 <div className="billing-plan-name">{plan.name}</div>
                 <div className="billing-plan-price">
-                  {plan.price === 0 ? 'Free' : `$${Number(plan.price).toFixed(0)}`}
+                  {plan.price === 0 ? 'Free' : `$${plan.price % 1 === 0 ? Number(plan.price).toFixed(0) : Number(plan.price).toFixed(2)}`}
                   {plan.price > 0 && <span>/mo</span>}
                 </div>
-                <div className="billing-plan-quota">{formatQuota(plan.monthly_quota)}/mo</div>
-                <div className="billing-plan-overage">
-                  {Number(plan.overage_rate) > 0
-                    ? `Overage: $${Number(plan.overage_rate).toFixed(4)}/1K tokens`
-                    : plan.isFree ? 'Upgrade to add more' : 'No overage fees'}
-                </div>
+                <div className="billing-plan-quota">{formatQuota(plan.monthly_quota)} / mo</div>
+
+                {!plan.isFree && (
+                  <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '0.75rem' }}>
+                    {Number(plan.overage_rate) > 0
+                      ? `Overage: $${Number(plan.overage_rate).toFixed(4)}/1K`
+                      : 'No overage fees'}
+                  </div>
+                )}
+
+                <div style={{ flex: 1 }} />
+
                 <button
-                  disabled={isCurrent || plan.isFree}
-                  className={`billing-plan-btn${isCurrent ? ' current' : plan.isFree ? ' disabled' : ' active'}`}
+                  disabled={isCurrent || plan.isFree || loadingPlan}
+                  onClick={() => subscribeToPlan(plan.name)}
+                  className={`billing-plan-btn${isCurrent ? ' current' : plan.isFree ? '' : ' active'}`}
+                  style={plan.isFree && !isCurrent ? {
+                    background: '#f3f4f6',
+                    color: '#d1d5db',
+                    cursor: 'default',
+                  } : {}}
                 >
-                  {isCurrent ? 'Current plan' : plan.isFree ? 'Free plan' : `Subscribe to ${plan.name}`}
+                  {loadingPlan ? 'Processing...' : isCurrent ? 'Current plan' : plan.isFree ? 'Free' : `Subscribe — $${plan.price % 1 === 0 ? Number(plan.price).toFixed(0) : Number(plan.price).toFixed(2)}`}
                 </button>
+
+                {/* Manage subscription */}
+                {isCurrent && !plan.isFree && (
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+                      const data = await res.json()
+                      if (data.url) window.location.href = data.url
+                    }}
+                    style={{
+                      fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.5rem',
+                      textAlign: 'center', textDecoration: 'underline',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Manage subscription →
+                  </button>
+                )}
               </div>
             )
           })}
         </div>
       </div>
 
-      {/* Transaction History */}
+      {/* ===== Buy Extra Credits ===== */}
+      <div className="billing-section">
+        <details style={{ cursor: 'pointer' }}>
+          <summary style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', listStyle: 'none', marginBottom: '1rem' }}>
+            <h2 className="billing-section-title" style={{ marginBottom: 0 }}>Buy Extra Credits</h2>
+            <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.6rem', borderRadius: 99, background: '#fef3c7', color: '#d97706', border: '1px solid #fde68a', fontWeight: 600 }}>Top-up</span>
+            <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#9ca3af' }}>▼</span>
+          </summary>
+          <div className="billing-packages">
+            {CREDIT_PACKAGES.map(pkg => (
+              <div key={pkg.key} className="billing-package">
+                <div className="billing-pkg-name">{pkg.label}</div>
+                <div className="billing-pkg-price">{pkg.price}</div>
+                <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <button
+                    className="billing-pkg-btn paypal"
+                    onClick={() => purchaseWithPayPal(pkg.key)}
+                    disabled={isLoading}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .76-.659h6.155c2.556 0 4.17.558 4.948 2.787.506 1.448.37 3.22-.37 4.545a5.513 5.513 0 0 1-3.037 2.863c-.98.371-2.036.558-3.137.558H8.833a.77.77 0 0 0-.758.658l-1.02 12.88a.64.64 0 0 1-.633.54l-.346.04z"/>
+                    </svg>
+                    PayPal
+                  </button>
+                  <button
+                    className="billing-pkg-btn direct"
+                    onClick={() => purchaseCreditsDirect(Number(pkg.key.replace('K','000').replace('M','000000')))}
+                    disabled={isLoading}
+                  >
+                    + Direct
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.75rem', textAlign: 'center' }}>
+            💳 Extra credits never expire. They&apos;re used after your plan&apos;s monthly quota is exhausted.
+          </p>
+        </details>
+      </div>
+
+      {/* ===== Transaction History ===== */}
       <div className="billing-section">
         <h2 className="billing-section-title">Transaction History</h2>
         {loading ? (
@@ -324,7 +437,7 @@ export default function BillingPage() {
   return (
     <Suspense fallback={
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <p style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Loading billing...</p>
+        <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>Loading billing...</p>
       </div>
     }>
       <BillingContent />

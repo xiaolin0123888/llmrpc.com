@@ -15,8 +15,7 @@ export default function AdminUserDetailPage() {
   const [showCreditsModal, setShowCreditsModal] = useState(false)
 
   const fetchData = async () => {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch(`/api/admin/users/${id}`, { headers: { 'x-admin-token': token ?? '' } })
+    const res = await fetch(`/api/admin/users/${id}`)
     if (res.status === 401) { router.push('/admin/login'); return }
     const data = await res.json()
     setUser(data.user); setKeys(data.keys); setTxs(data.transactions); setLoading(false)
@@ -26,12 +25,7 @@ export default function AdminUserDetailPage() {
 
   const handleAction = async (action: string, extra?: any) => {
     setActionLoading(true)
-    const token = localStorage.getItem('admin_token')
-    await fetch(`/api/admin/users/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': token ?? '' },
-      body: JSON.stringify({ action, ...extra }),
-    })
+    await fetch(`/api/admin/users/${id}`)
     setActionLoading(false); setShowCreditsModal(false); setCreditsAmount(''); fetchData()
   }
 
