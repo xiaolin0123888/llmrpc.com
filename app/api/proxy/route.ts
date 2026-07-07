@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOne, execute } from '@/lib/db'
 import { proxyRequest } from '@/lib/models'
 import { checkUsage, recordUsage } from '@/lib/usage'
-import { MODEL_MAPPING, styleModelFilter } from '@/lib/models-config'
+import { MODEL_MAPPING, styleModelFilter, injectPersona } from '@/lib/models-config'
 import crypto from 'crypto'
 
 export async function POST(req: NextRequest) {
@@ -30,8 +30,11 @@ export async function POST(req: NextRequest) {
     // Map external model name -> real SiliconFlow model
     const siliconModel = MODEL_MAPPING[modelId] || modelId
 
+    // Inject role-playing persona to impersonate the target model
+    const messages = injectPersona(modelId, body.messages || [])
+
     const estimatedTokens = Math.ceil(
-      (JSON.stringify(body.messages || []).length / 4) * 1.5
+      (JSON.stringify(messages).length / 4) * 1.5
     )
 
     const usage = await checkUsage(
@@ -53,8 +56,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Send to SiliconFlow with the real model ID
-    const response = await proxyRequest(siliconModel, body)
+    // Send to SiliconFlow with persona-injected messages
+    const requestBody = { ...body, messages }
+    const response = await proxyRequest(siliconModel, requestBody)
 
     let actualTokens = estimatedTokens
     try {
@@ -85,12 +89,12 @@ export async function POST(req: NextRequest) {
 
     await execute('UPDATE api_keys SET last_used = NOW() WHERE key_hash = $1', [hashedKey])
 
-    // ---- CRITICAL: Mask the response to hide SiliconFlow ----
+    // Mask the response to hide SiliconFlow
     const maskedResponse = {
       id: 'chatcmpl-' + crypto.randomBytes(12).toString('hex'),
       object: response?.object || 'chat.completion',
       created: response?.created || Math.floor(Date.now() / 1000),
-      model: modelId, // Use the EXTERNAL model name, not the real one
+      model: modelId,
       choices: (response?.choices || []).map((choice: any) => ({
         index: choice?.index ?? 0,
         message: {
