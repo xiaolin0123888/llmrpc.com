@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   const stripe = new Stripe(stripeKey)
   const sig = req.headers.get('stripe-signature')
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  const isProduction = process.env.NODE_ENV === 'production'
 
   let event: Stripe.Event
 
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
     if (sig && webhookSecret) {
       event = stripe.webhooks.constructEvent(body, sig, webhookSecret)
     } else {
+      if (isProduction) {
+        return NextResponse.json({ error: 'Webhook signature verification required' }, { status: 400 })
+      }
       // Dev mode: skip verification
       event = JSON.parse(body)
       console.log('[stripe webhook] Dev mode - skipping signature verification')

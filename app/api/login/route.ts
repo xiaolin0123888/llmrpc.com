@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getOne, execute } from '@/lib/db'
+import { getOne } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
-
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'fallback-secret-change-me'
-const TOKEN_EXPIRY = '7d'
+import { signToken } from '@/lib/auth'
+import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json()
+    const [body, parseError] = await safeJson<{ email?: string; password?: string }>(req)
+    if (parseError) return parseError
+
+    const email = body?.email?.trim().toLowerCase()
+    const password = body?.password
+
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
     }
@@ -34,13 +37,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, name: user.name },
-      JWT_SECRET,
-      { expiresIn: TOKEN_EXPIRY }
-    )
+    const token = signToken({ userId: user.id, email: user.email, name: user.name })
 
-    const response = NextResponse.json({ ok: true, token, user: { id: user.id, email: user.email, name: user.name } })
+    const response = NextResponse.json({ ok: true, user: { id: user.id, email: user.email, name: user.name } })
     response.cookies.set('auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

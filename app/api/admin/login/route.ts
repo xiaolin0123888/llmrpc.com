@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { signAdminToken } from '@/lib/admin-auth'
+import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json()
+    const [body, parseError] = await safeJson<{ email?: string; password?: string }>(req)
+    if (parseError) return parseError
+
+    const email = body?.email?.trim()
+    const password = body?.password
     
     if (password !== process.env.ADMIN_PASSWORD) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })

@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOne, execute } from '@/lib/db'
 import { sendPasswordResetEmail } from '@/lib/email'
+import { safeJson } from '@/lib/safe-json'
 import crypto from 'crypto'
+
+const GENERIC_RESPONSE = { message: 'If an account exists, we sent a reset link.' }
 
 export async function POST(req: NextRequest) {
   try {
-    let email = ''
-    try {
-      const body = await req.json()
-      email = body.email || ''
-    } catch {
-      return NextResponse.json({ message: 'If an account exists, we sent a reset link.' })
-    }
+    const [body, parseError] = await safeJson<{ email?: string }>(req)
+    if (parseError) return NextResponse.json(GENERIC_RESPONSE)
+
+    const email = body?.email?.trim().toLowerCase() || ''
     
     if (!email) {
-      return NextResponse.json({ message: 'If an account exists, we sent a reset link.' })
+      return NextResponse.json(GENERIC_RESPONSE)
     }
 
     const user = await getOne('SELECT id FROM users WHERE email = $1', [email])
@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
       await sendPasswordResetEmail(email, resetUrl)
     }
     
-    return NextResponse.json({ message: 'If an account exists, we sent a reset link.' })
+    return NextResponse.json(GENERIC_RESPONSE)
   } catch (err) {
     console.error('[forgot-password error]', err)
-    return NextResponse.json({ message: 'If an account exists, we sent a reset link.' })
+    return NextResponse.json(GENERIC_RESPONSE)
   }
 }
