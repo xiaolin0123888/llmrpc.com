@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeJson } from '@/lib/safe-json'
 
 /**
  * PayPal Webhook Handler
@@ -18,7 +19,10 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const [body, parseError] = await safeJson<{ event_type?: string; id?: string }>(req)
+    if (parseError) return parseError
+    if (!body) return NextResponse.json({ error: 'Request body required' }, { status: 400 })
+
     const { event_type, id: webhookEventId } = body
 
     console.log(`[paypal webhook] Received ${event_type} (id: ${webhookEventId})`)

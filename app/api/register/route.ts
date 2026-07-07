@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { getOne, execute } from '@/lib/db'
 import crypto from 'crypto'
 import { sendVerificationEmail } from '@/lib/email'
+import { safeJson } from '@/lib/safe-json'
 
 const VERIFY_EXPIRY_HOURS = 24
 const REGISTER_BONUS = 100000
@@ -10,7 +11,13 @@ const REFERRAL_BONUS = 150000
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, ref } = await req.json()
+    const [body, parseError] = await safeJson<{ email?: string; password?: string; ref?: string }>(req)
+    if (parseError) return parseError
+
+    const email = body?.email?.trim().toLowerCase()
+    const password = body?.password
+    const ref = body?.ref?.trim()
+
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
