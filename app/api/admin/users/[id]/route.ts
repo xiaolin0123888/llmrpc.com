@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAll, getOne, execute } from '@/lib/db'
 import { requireAdmin } from '@/lib/admin-auth'
+import { safeJson } from '@/lib/safe-json'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = requireAdmin(req)
@@ -35,15 +36,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('error' in auth) return auth.error
   try {
     const { id } = await params
-    const { action, amount } = await req.json()
+    const [body, parseError] = await safeJson<{ action?: string; amount?: number }>(req)
+    if (parseError) return parseError
+
+    const { action, amount } = body || {}
     if (action === 'toggle_ban') {
       await execute('UPDATE users SET is_banned = NOT is_banned WHERE id = $1', [id])
       return NextResponse.json({ success: true })
     }
     if (action === 'add_credits') {
-      if (!amount) return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
-      await execute('UPDATE users SET credits = credits + $1 WHERE id = $2', [amount, id])
-      await execute(`INSERT INTO transactions (user_id, type, amount, description) VALUES ($1, 'ADMIN_ADD', $2, $3)`, [id, amount, `Admin added ${amount} credits`])
+      const creditAmount = amount
+      if (typeof creditAmount !== 'number' || !Number.isSafeInteger(creditAmount) || creditAmount <= 0 || creditAmount > 10_000_000) {
+        return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+      }
+      await execute('UPDATE users SET credits = credits + $1 WHERE id = $2', [creditAmount, id])
+      await execute(`INSERT INTO transactions (user_id, type, amount, description) VALUES ($1, 'ADMIN_ADD', $2, $3)`, [id, creditAmount, `Admin added ${creditAmount} credits`])
       return NextResponse.json({ success: true })
     }
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

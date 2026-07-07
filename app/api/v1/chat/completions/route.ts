@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
+  const [body, parseError] = await safeJson<Record<string, any>>(req)
+  if (parseError) return parseError
+  if (!body) {
+    return NextResponse.json(
+      { error: { message: 'Request body required', type: 'invalid_request_error' } },
+      { status: 400 }
+    )
+  }
+
+  const apiKey = req.headers.get('x-api-key')
+  const authHeader = req.headers.get('authorization')
+  const keyValue = apiKey || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null)
   
   const headers = new Headers(req.headers)
+  if (keyValue) headers.set('x-api-key', keyValue)
   const proxyUrl = new URL('/api/proxy', req.url)
   
   try {
@@ -15,10 +28,6 @@ export async function POST(req: NextRequest) {
     const data = await res.json()
     return NextResponse.json(data, { status: res.status })
   } catch {
-    const apiKey = req.headers.get('x-api-key')
-    const authHeader = req.headers.get('authorization')
-    const keyValue = apiKey || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null)
-    
     if (!keyValue) {
       return NextResponse.json(
         { error: { message: 'API key required. Use Authorization: Bearer sk-...', type: 'authentication_error' } },

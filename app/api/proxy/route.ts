@@ -3,11 +3,14 @@ import { getOne, execute } from '@/lib/db'
 import { proxyRequest } from '@/lib/models'
 import { checkUsage, recordUsage } from '@/lib/usage'
 import { MODEL_MAPPING, styleModelFilter } from '@/lib/models-config'
+import { safeJson } from '@/lib/safe-json'
 import crypto from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization')
     const apiKey = req.headers.get('x-api-key')
+      || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null)
     if (!apiKey) {
       return NextResponse.json({ error: 'API key required' }, { status: 401 })
     }
@@ -21,7 +24,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const [body, parseError] = await safeJson<Record<string, any>>(req)
+    if (parseError) return parseError
+    if (!body) {
+      return NextResponse.json({ error: 'Request body required' }, { status: 400 })
+    }
+
     const modelId = body.model
     if (!modelId) {
       return NextResponse.json({ error: 'model field required' }, { status: 400 })

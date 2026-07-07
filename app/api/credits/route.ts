@@ -6,6 +6,7 @@ import { getCurrentPeriodUsage, getUserPlanName } from '@/lib/usage'
 import { getPlanQuotaAndOverage } from '@/lib/plans'
 import { getDaysRemainingInPeriod } from '@/lib/period'
 import { requireAdmin } from '@/lib/admin-auth'
+import { safeJson } from '@/lib/safe-json'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -46,7 +47,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { userId, amount } = await req.json()
+    const [body, parseError] = await safeJson<{ userId?: string; amount?: number }>(req)
+    if (parseError) return parseError
+
+    const userId = body?.userId
+    const amount = body?.amount
     if (!userId || typeof userId !== "string") {
       return NextResponse.json({ error: "userId required" }, { status: 400 })
     }

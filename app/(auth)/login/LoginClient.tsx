@@ -1,12 +1,11 @@
 'use client'
 import Link from 'next/link'
 import { useState } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function LoginClient() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -35,12 +34,8 @@ export default function LoginClient() {
         return
       }
 
-      // Store token
-      localStorage.setItem('llm_token', data.token)
-      localStorage.setItem('llm_user', JSON.stringify(data.user))
-
       const redirect = searchParams.get('redirect')
-      window.location.href = '/dashboard'
+      window.location.href = redirect || '/dashboard'
     } catch (err) {
       console.error('Login error:', err)
       setError('Network error, please try again')

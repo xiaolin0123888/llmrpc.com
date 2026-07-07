@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = new Stripe(stripeKey)
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://llmrpc.com'
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://llmrpc.com'
 
     const user = await getOne('SELECT stripe_customer_id FROM users WHERE id = $1', [session.user.userId])
 

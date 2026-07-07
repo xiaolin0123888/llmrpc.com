@@ -27,7 +27,6 @@ function BillingContent() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [usage, setUsage] = useState<{ used: number; quota: number; daysLeft: number } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [purchasing, setPurchasing] = useState(false)
   const [paypalLoading, setPaypalLoading] = useState(false)
   const [subscribeLoading, setSubscribeLoading] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -146,27 +145,6 @@ function BillingContent() {
     }
   }, [showNotification])
 
-  const purchaseCreditsDirect = useCallback(async (amount: number) => {
-    setPurchasing(true)
-    try {
-      const res = await fetch('/api/credits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setCredits(data.credits)
-        showNotification('success', `Added ${amount.toLocaleString()} credits!`)
-      } else {
-        showNotification('error', data.error || 'Purchase failed.')
-      }
-    } catch {
-      showNotification('error', 'Network error. Please try again.')
-    }
-    setPurchasing(false)
-  }, [showNotification])
-
   useEffect(() => {
     // Independent fetches so one failure doesn't block the other
     const loadCredits = fetch('/api/credits').then(r => r.json()).catch(() => ({}))
@@ -182,7 +160,7 @@ function BillingContent() {
     })
   }, [])
 
-  const isLoading = purchasing || paypalLoading
+  const isLoading = paypalLoading
 
   // Build display plans
   const displayPlans = [
@@ -375,13 +353,6 @@ function BillingContent() {
                       <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .76-.659h6.155c2.556 0 4.17.558 4.948 2.787.506 1.448.37 3.22-.37 4.545a5.513 5.513 0 0 1-3.037 2.863c-.98.371-2.036.558-3.137.558H8.833a.77.77 0 0 0-.758.658l-1.02 12.88a.64.64 0 0 1-.633.54l-.346.04z"/>
                     </svg>
                     PayPal
-                  </button>
-                  <button
-                    className="billing-pkg-btn direct"
-                    onClick={() => purchaseCreditsDirect(Number(pkg.key.replace('K','000').replace('M','000000')))}
-                    disabled={isLoading}
-                  >
-                    + Direct
                   </button>
                 </div>
               </div>

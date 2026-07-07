@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { execute } from '@/lib/db'
+import { safeJson } from '@/lib/safe-json'
 
 const CREDIT_PACKAGES: Record<string, { tokens: number; price: string }> = {
   '100K': { tokens: 100_000,  price: '1.00' },
@@ -14,11 +15,14 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { package: pkgKey } = await req.json()
-    const pkg = CREDIT_PACKAGES[pkgKey]
-    if (!pkg) return NextResponse.json({ error: 'Invalid package' }, { status: 400 })
+    const [body, parseError] = await safeJson<{ package?: string }>(req)
+    if (parseError) return parseError
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://llmrpc.com'
+    const pkgKey = body?.package
+    const pkg = pkgKey ? CREDIT_PACKAGES[pkgKey] : null
+    if (!pkgKey || !pkg) return NextResponse.json({ error: 'Invalid package' }, { status: 400 })
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://llmrpc.com'
     const clientId = process.env.PAYPAL_CLIENT_ID
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET
     const mode = process.env.PAYPAL_MODE || 'sandbox'
