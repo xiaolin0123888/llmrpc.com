@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/', '/login', '/register', '/models', '/billing', '/privacy', '/refund', '/terms', '/referrals', '/forgot-password', '/reset-password']
+const PUBLIC_PATHS = ['/', '/announcements', '/login', '/register', '/models', '/billing', '/privacy', '/refund', '/terms', '/referrals', '/forgot-password', '/reset-password']
 const ADMIN_PATHS = ['/admin/login']
-const PUBLIC_API_PATHS = [
-  '/api/auth', '/api/login', '/api/register', '/api/models', '/api/plans', '/api/proxy', '/api/credits', '/api/keys',
-  '/api/admin/login', '/v1/chat/completions',
-  '/api/admin/stats', '/api/admin/users', '/api/admin/orders', '/api/admin/plans',
-  '/api/admin/keys', '/api/admin/announcements',
+
+// Paths that should NEVER redirect to an HTML login page.
+// These are either public or return JSON 401 from the route handler.
+const JSON_ROUTES = [
+  '/api/', '/v1/', '/robots.txt', '/sitemap.xml', '/.well-known/',
+  '/api/admin/',
 ]
 
 function parseCookies(cookieHeader: string): Record<string, string> {
@@ -39,9 +40,13 @@ function getToken(req: NextRequest): Record<string, any> | null {
 export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
 
-  for (const p of PUBLIC_API_PATHS) {
+  // API/JSON routes — never redirect to HTML login page
+  for (const p of JSON_ROUTES) {
     if (pathname.startsWith(p)) return NextResponse.next()
   }
+
+  // Public pages — skip auth (must be before login/register redirect)
+  if (PUBLIC_PATHS.some(p => pathname === p)) return NextResponse.next()
 
   if (ADMIN_PATHS.some(p => pathname === p)) return NextResponse.next()
 
@@ -53,13 +58,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Logged-in users visiting /login or /register → redirect to dashboard
   if (pathname === '/login' || pathname === '/register') {
     const token = getToken(req)
     if (token?.userId) return NextResponse.redirect(new URL('/dashboard', req.url))
     return NextResponse.next()
   }
-
-  if (PUBLIC_PATHS.some(p => pathname === p)) return NextResponse.next()
 
   const token = getToken(req)
   if (!token?.userId) {

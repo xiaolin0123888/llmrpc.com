@@ -7,9 +7,8 @@ export default function AdminKeysPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const fetchKeys = async (p = 1, s = search) => {
-    const token = localStorage.getItem('admin_token')
     setLoading(true)
-    const res = await fetch(`/api/admin/keys?page=${p}&limit=20&search=${encodeURIComponent(s)}`, { headers: { 'x-admin-token': token ?? '' } })
+    const res = await fetch(`/api/admin/keys?page=${p}&limit=20&search=${encodeURIComponent(s)}`)
     if (res.status === 401) { window.location.href = '/admin/login'; return }
     const data = await res.json()
     setKeys(data.keys); setTotal(data.total); setPage(p); setLoading(false)

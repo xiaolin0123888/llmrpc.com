@@ -30,6 +30,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: portalSession.url })
   } catch (err: any) {
     console.error('[stripe portal]', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: "Portal error" }, { status: 500 })
   }
 }

@@ -9,51 +9,47 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) { setError('Email and password required'); return }
-    setError('')
     setLoading(true)
+    setError('')
+
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password })
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Login failed'); setLoading(false); return }
-      localStorage.setItem('admin_token', data.token)
-      localStorage.setItem('admin_email', data.email)
-      // Set cookie so middleware can read it
-      document.cookie = `admin_token=${data.token}; path=/; max-age=86400; sameSite=strict`
-      // Full page redirect ensures middleware sees the cookie
+      if (!res.ok) {
+        setError('Invalid credentials')
+        setLoading(false)
+        return
+      }
+      // Token is set as HttpOnly cookie by the server
       window.location.href = '/admin/dashboard'
-    } catch { setError('Network error'); setLoading(false) }
+    } catch {
+      setError('Server error')
+      setLoading(false)
+    }
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f5f5f5', padding: '1rem' }}>
-      <div style={{ background: '#ffffff', borderRadius: '12px', padding: '40px', width: '100%', maxWidth: '400px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', textAlign: 'center' }}>
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#111111', marginBottom: '4px' }}>
-            LLM<span style={{ color: '#2563eb' }}>Rpc</span>
-            <span style={{ fontSize: '10px', background: '#2563eb', color: '#ffffff', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 600, verticalAlign: 'middle' }}>Admin</span>
+    <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="bg-gray-900 p-8 rounded-xl border border-gray-800 w-full max-w-sm">
+        <h1 className="text-2xl font-bold text-center mb-2">LLMRpc Admin</h1>
+        <p className="text-gray-400 text-sm text-center mb-8">Sign in to continue</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@llmrpc.com" required
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
           </div>
-          <div style={{ fontSize: '14px', color: '#666666' }}>Sign in to admin account</div>
-        </div>
-        {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', color: '#dc2626', fontSize: '13px', textAlign: 'left' }}>
-            {error}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
           </div>
-        )}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter admin email" required style={{ width: '100%', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', color: '#111111', background: '#ffffff', outline: 'none', boxSizing: 'border-box' }} />
-          </div>
-          <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required style={{ width: '100%', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', color: '#111111', background: '#ffffff', outline: 'none', boxSizing: 'border-box' }} />
-          </div>
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: '11px', background: loading ? '#93c5fd' : '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition-colors">
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>

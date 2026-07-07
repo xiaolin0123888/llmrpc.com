@@ -1,7 +1,11 @@
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
 
-const SECRET = process.env.JWT_SECRET || 'llmrpc-admin-jwt-secret-2026'
+const SECRET = process.env.JWT_SECRET as string
+if (!SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for admin authentication')
+}
+
 const TOKEN_EXPIRY = '2h'
 
 export type AdminPayload = {
@@ -16,7 +20,6 @@ export function signAdminToken(payload: AdminPayload): string {
 
 /** Verify a JWT admin token from request header or cookie. Returns null on failure */
 export function verifyAdmin(req: NextRequest): AdminPayload | null {
-  // Try x-admin-token header first, then cookie
   const token = req.headers.get('x-admin-token') || getCookie(req, 'admin_token')
   if (!token) return null
   try {

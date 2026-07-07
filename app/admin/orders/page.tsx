@@ -9,9 +9,8 @@ export default function AdminOrdersPage() {
   const statusColors: Record<string, string> = { completed: '#dcfce7', pending: '#fef9c3', refunded: '#fef2f2' }
   const statusTextColors: Record<string, string> = { completed: '#16a34a', pending: '#ca8a04', refunded: '#dc2626' }
   const fetchOrders = async (p = 1, s = status) => {
-    const token = localStorage.getItem('admin_token')
     setLoading(true)
-    const res = await fetch(`/api/admin/orders?page=${p}&status=${s}`, { headers: { 'x-admin-token': token ?? '' } })
+    const res = await fetch(`/api/admin/orders?page=${p}&status=${s}`)
     if (res.status === 401) { window.location.href = '/admin/login'; return }
     const data = await res.json()
     setOrders(data.orders); setTotal(data.total); setPage(p); setLoading(false)

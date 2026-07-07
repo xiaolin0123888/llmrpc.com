@@ -8,8 +8,7 @@ export default function AdminAnnouncementsPage() {
   const [form, setForm] = useState({ title: '', content: '', show_homepage: false })
   const [saving, setSaving] = useState(false)
   const fetchData = async () => {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch('/api/admin/announcements', { headers: { 'x-admin-token': token ?? '' } })
+    const res = await fetch('/api/admin/announcements')
     if (res.status === 401) { window.location.href = '/admin/login'; return }
     const data = await res.json(); setAnnouncements(data.announcements); setLoading(false)
   }
@@ -18,16 +17,14 @@ export default function AdminAnnouncementsPage() {
   const openEdit = (a: any) => { setEditItem(a); setForm({ title: a.title, content: a.content, show_homepage: a.show_homepage }); setShowModal(true) }
   const handleSave = async () => {
     setSaving(true)
-    const token = localStorage.getItem('admin_token')
     const method = editItem ? 'PUT' : 'POST'
     const body = editItem ? { ...form, id: editItem.id } : form
-    await fetch('/api/admin/announcements', { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': token ?? '' }, body: JSON.stringify(body) })
+    await fetch('/api/admin/announcements')
     setShowModal(false); fetchData(); setSaving(false)
   }
   const handleDelete = async (id: number) => {
     if (!confirm('Delete?')) return
-    const token = localStorage.getItem('admin_token')
-    await fetch(`/api/admin/announcements?id=${id}`, { method: 'DELETE', headers: { 'x-admin-token': token ?? '' } })
+    await fetch(`/api/admin/announcements?id=${id}`)
     fetchData()
   }
   return (

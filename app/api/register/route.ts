@@ -63,6 +63,6 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('[register error]', err?.message, err?.code)
-    return NextResponse.json({ error: 'Internal error: ' + (err?.message || err) }, { status: 500 })
+    return NextResponse.json({ error: 'Registration failed' }, { status: 500 })
   }
 }

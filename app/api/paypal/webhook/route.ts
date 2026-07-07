@@ -1,65 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { execute, getOne } from '@/lib/db'
 
 /**
  * PayPal Webhook Handler
  *
- * Register at: https://developer.paypal.com/dashboard
- * Events: PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED, PAYMENT.CAPTURE.REFUNDED
- * Webhook URL: https://llmrpc.com/api/paypal/webhook
+ * SECURITY: Webhook signature verification is REQUIRED before processing.
+ * Without verification, anyone can POST fake PAYMENT.CAPTURE.COMPLETED events.
  *
- * This webhook can be used for:
- * - Auto-recharge (Reference Transactions) - trigger additional charges
- * - Idempotent reconciliation as backup to client-side capture
+ * Until PayPal webhook signature verification is implemented,
+ * this handler only logs events for reconciliation purposes.
+ * Actual credit addition happens via the client-side capture-order endpoint
+ * which validates the PayPal order server-side before crediting.
+ *
+ * To implement signature verification:
+ * 1. Set PAYPAL_WEBHOOK_ID in environment variables
+ * 2. Use PayPal's verify-webhook-signature API
+ * 3. Only process events after successful verification
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { event_type, resource } = body
+    const { event_type, id: webhookEventId } = body
 
-    console.log(`[paypal webhook] ${event_type}`)
+    console.log(`[paypal webhook] Received ${event_type} (id: ${webhookEventId})`)
+    console.log('[paypal webhook] NOTE: Auto-crediting disabled pending signature verification')
 
-    switch (event_type) {
-      case 'PAYMENT.CAPTURE.COMPLETED': {
-        const orderId = resource?.supplementary_data?.related_ids?.order_id || resource?.order_id || resource?.id
-        if (!orderId) break
+    // ================================================================
+    // Webhook signature verification is DISABLED for security.
+    // Re-enable only after implementing PayPal signature verification:
+    //
+    // 1. Get PayPal access token via OAuth
+    // 2. POST to /v1/notifications/verify-webhook-signature
+    // 3. Only process if verification_status == "SUCCESS"
+    //
+    // const verified = await verifyPaypalWebhookSignature(req, body)
+    // if (!verified) {
+    //   console.error('[paypal webhook] Signature verification FAILED')
+    //   return NextResponse.json({ error: 'Verification failed' }, { status: 401 })
+    // }
+    // ================================================================
 
-        const tx = await getOne(
-          `SELECT * FROM transactions WHERE type = 'PURCHASE' AND metadata::jsonb->>'orderId' = $1 LIMIT 1`,
-          [orderId]
-        )
-
-        if (tx) {
-          const meta = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata
-          if (meta?.status !== 'completed') {
-            await execute(`UPDATE users SET credits = credits + $1 WHERE id = $2`, [meta.tokens, tx.user_id])
-            await execute(
-              `UPDATE transactions SET metadata = $1 WHERE id = $2`,
-              [JSON.stringify({ ...meta, status: 'completed', webhookFiredAt: new Date().toISOString() }), tx.id]
-            )
-          }
-        }
-        break
-      }
-
-      case 'PAYMENT.CAPTURE.DENIED':
-      case 'PAYMENT.CAPTURE.REFUNDED': {
-        const orderId = resource?.order_id || resource?.id
-        if (orderId) {
-          await execute(
-            `UPDATE transactions SET metadata = jsonb_set(metadata, '{status}', '"denied"')
-             WHERE type = 'PURCHASE' AND metadata::jsonb->>'orderId' = $1 AND metadata::jsonb->>'status' = 'pending'`,
-            [orderId]
-          )
-        }
-        break
-      }
-
-      default:
-        console.log(`[paypal webhook] Unhandled: ${event_type}`)
-    }
-
-    return NextResponse.json({ received: true })
+    // Log for reconciliation (no credit changes)
+    return NextResponse.json({ received: true, processed: false, reason: 'signature_verification_required' })
   } catch (err) {
     console.error('[paypal webhook error]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

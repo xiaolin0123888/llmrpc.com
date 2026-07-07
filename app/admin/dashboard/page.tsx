@@ -6,8 +6,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token')
-    fetch('/api/admin/stats', { headers: { 'x-admin-token': token ?? '' } })
+    fetch('/api/admin/stats')
       .then(r => { if (r.status === 401) { window.location.href = '/admin/login'; return }; return r.json() })
       .then(d => { setStats(d); setLoading(false) })
   }, [])
