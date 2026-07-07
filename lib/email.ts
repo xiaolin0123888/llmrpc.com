@@ -1,10 +1,17 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = 'LLMRpc <noreply@llmrpc.com>'
 
+function getResend(): Resend {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY environment variable is required')
+  }
+  return new Resend(apiKey)
+}
+
 export async function sendPasswordResetEmail(email: string, resetUrl: string) {
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: FROM,
     to: email,
     subject: 'Reset your LLMRpc password',
@@ -30,7 +37,7 @@ export async function sendPasswordResetEmail(email: string, resetUrl: string) {
 }
 
 export async function sendVerificationEmail(email: string, verifyUrl: string) {
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: FROM,
     to: email,
     subject: 'Verify your LLMRpc account — get 100,000 credits!',

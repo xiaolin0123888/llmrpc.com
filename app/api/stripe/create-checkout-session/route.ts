@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { execute, getOne } from '@/lib/db'
+import { safeJson } from '@/lib/safe-json'
 import Stripe from 'stripe'
 
 // Map plan name to Stripe Price ID (set via env)
@@ -16,10 +17,13 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { plan } = await req.json()
-    const priceId = PLAN_PRICE_IDS[plan]
+    const [body, parseError] = await safeJson<{ plan?: string }>(req)
+    if (parseError) return parseError
 
-    if (!priceId) {
+    const plan = body?.plan
+    const priceId = plan ? PLAN_PRICE_IDS[plan] : ''
+
+    if (!plan || !priceId) {
       return NextResponse.json({ error: 'Invalid plan or Stripe price not configured' }, { status: 400 })
     }
 
@@ -29,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = new Stripe(stripeKey)
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://llmrpc.com'
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://llmrpc.com'
 
     // Get or create Stripe customer
     const user = await getOne('SELECT * FROM users WHERE id = $1', [session.user.userId])

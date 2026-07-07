@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { getOne, execute } from '@/lib/db'
+import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: NextRequest) {
   try {
-    const { token, password } = await req.json()
+    const [body, parseError] = await safeJson<{ token?: string; password?: string }>(req)
+    if (parseError) return parseError
+
+    const token = body?.token
+    const password = body?.password
     if (!token || !password) return NextResponse.json({ error: 'Token and password required' }, { status: 400 })
     if (password.length < 6) return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
 

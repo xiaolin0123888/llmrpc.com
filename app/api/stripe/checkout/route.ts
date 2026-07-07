@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { auth } from '@/lib/auth'
+import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -16,7 +17,11 @@ export async function POST(req: NextRequest) {
   const stripe = new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' })
 
   try {
-    const { credits, priceId } = await req.json()
+    const [body, parseError] = await safeJson<{ credits?: number; priceId?: string }>(req)
+    if (parseError) return parseError
+
+    const { credits, priceId } = body || {}
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://llmrpc.com'
 
     if (credits) {
       const checkoutSession = await stripe.checkout.sessions.create({
@@ -35,8 +40,8 @@ export async function POST(req: NextRequest) {
           },
         ],
         mode: 'payment',
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing?success=1`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing?canceled=1`,
+        success_url: `${baseUrl}/billing?success=1`,
+        cancel_url: `${baseUrl}/billing?canceled=1`,
         metadata: {
           userId: session.user.userId,
           credits: credits.toString(),
@@ -51,8 +56,8 @@ export async function POST(req: NextRequest) {
         payment_method_types: ['card'],
         line_items: [{ price: priceId, quantity: 1 }],
         mode: 'subscription',
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing?success=1`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing?canceled=1`,
+        success_url: `${baseUrl}/billing?success=1`,
+        cancel_url: `${baseUrl}/billing?canceled=1`,
         metadata: {
           userId: session.user.userId,
           type: 'SUBSCRIPTION',

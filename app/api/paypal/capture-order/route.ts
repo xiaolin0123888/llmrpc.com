@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { execute, getOne } from '@/lib/db'
+import { getOne, prisma } from '@/lib/db'
+import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { orderId } = await req.json()
+    const [body, parseError] = await safeJson<{ orderId?: string }>(req)
+    if (parseError) return parseError
+
+    const orderId = body?.orderId
     if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 })
 
     const clientId = process.env.PAYPAL_CLIENT_ID
@@ -56,25 +60,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Already fulfilled' }, { status: 400 })
     }
 
-    // Credit the user
-    await execute(
-      `UPDATE users SET credits = credits + $1 WHERE id = $2`,
-      [meta.tokens, session.user.userId]
-    )
+    const tokenAmount = Number(meta?.tokens)
+    if (!Number.isSafeInteger(tokenAmount) || tokenAmount <= 0 || tokenAmount > 10_000_000) {
+      return NextResponse.json({ error: 'Invalid transaction amount' }, { status: 400 })
+    }
 
-    // Update transaction to completed
-    await execute(
-      `UPDATE transactions SET description = $1, metadata = $2 WHERE id = $3`,
-      [
-        `Purchased ${meta.tokens.toLocaleString()} credits via PayPal`,
-        JSON.stringify({ ...meta, status: 'completed', paypalOrderId: order.id, capturedAt: new Date().toISOString() }),
+    const completed = await prisma.$transaction(async (tx) => {
+      const rows: any[] = await tx.$queryRawUnsafe(
+        `UPDATE transactions
+         SET description = $1, metadata = $2
+         WHERE id = $3
+           AND user_id = $4
+           AND metadata::jsonb->>'status' = 'pending'
+         RETURNING id`,
+        `Purchased ${tokenAmount.toLocaleString()} credits via PayPal`,
+        JSON.stringify({ ...meta, tokens: tokenAmount, status: 'completed', paypalOrderId: order.id, capturedAt: new Date().toISOString() }),
         pendingTx.id,
-      ]
-    )
+        session.user.userId
+      )
+
+      if (!rows.length) return false
+
+      await tx.$executeRawUnsafe(
+        `UPDATE users SET credits = credits + $1 WHERE id = $2`,
+        tokenAmount,
+        session.user.userId
+      )
+
+      return true
+    })
+
+    if (!completed) {
+      return NextResponse.json({ error: 'Already fulfilled' }, { status: 400 })
+    }
 
     const user = await getOne(`SELECT credits FROM users WHERE id = $1`, [session.user.userId])
 
-    return NextResponse.json({ success: true, credits: user?.credits, tokens: meta.tokens })
+    return NextResponse.json({ success: true, credits: user?.credits, tokens: tokenAmount })
   } catch (err) {
     console.error('[paypal capture-order]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
