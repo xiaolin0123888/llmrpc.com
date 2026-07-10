@@ -55,6 +55,18 @@ export const PLAN_ACCESS: Record<string, string[]> = {
   'Unlimited': Object.keys(MODEL_MAPPING),
 }
 
+export function normalizePlanName(value: unknown): keyof typeof PLAN_ACCESS {
+  const normalized = String(value || 'FREE').toUpperCase()
+  const planNames: Record<string, keyof typeof PLAN_ACCESS> = {
+    FREE: 'Free',
+    BASIC: 'Basic',
+    PRO: 'Pro',
+    ENTERPRISE: 'Enterprise',
+    UNLIMITED: 'Unlimited',
+  }
+  return planNames[normalized] || 'Free'
+}
+
 export function styleModelFilter(showModel: string, content: string): string {
   if (!content) return content
   const banWords = [

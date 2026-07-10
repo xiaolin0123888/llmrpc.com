@@ -7,21 +7,57 @@ export default function AdminPlansPage() {
   const [editPlan, setEditPlan] = useState<any>(null)
   const [form, setForm] = useState({ name: '', price: '', monthly_quota: '', overage_rate: '0' })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const fetchPlans = async () => {
-    const res = await fetch('/api/admin/plans')
-    if (res.status === 401) { window.location.href = '/admin/login'; return }
-    const data = await res.json(); setPlans(data.plans); setLoading(false)
+    try {
+      const res = await fetch('/api/admin/plans')
+      if (res.status === 401) { window.location.href = '/admin/login'; return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Failed to load plans')
+        setLoading(false)
+        return
+      }
+      const data = await res.json(); setPlans(data.plans); setError(''); setLoading(false)
+    } catch {
+      setError('Failed to load plans')
+      setLoading(false)
+    }
   }
   useEffect(() => { fetchPlans() }, [])
-  const openAdd = () => { setEditPlan(null); setForm({ name: '', price: '', monthly_quota: '', overage_rate: '0' }); setShowModal(true) }
-  const openEdit = (p: any) => { setEditPlan(p); setForm({ name: p.name, price: String(p.price), monthly_quota: String(p.monthly_quota), overage_rate: String(p.overage_rate ?? '0') }); setShowModal(true) }
+  const openAdd = () => { setError(''); setEditPlan(null); setForm({ name: '', price: '', monthly_quota: '', overage_rate: '0' }); setShowModal(true) }
+  const openEdit = (p: any) => { setError(''); setEditPlan(p); setForm({ name: p.name, price: String(p.price), monthly_quota: String(p.monthly_quota), overage_rate: String(p.overage_rate ?? '0') }); setShowModal(true) }
   const handleSave = async () => {
     setSaving(true)
+    setError('')
     const url = '/api/admin/plans'
     const method = editPlan ? 'PUT' : 'POST'
-    const body = editPlan ? { ...form, id: editPlan.id, is_active: true } : form
-    await fetch(url)
-    setShowModal(false); fetchPlans(); setSaving(false)
+    const plan = {
+      name: form.name.trim(),
+      price: Number(form.price),
+      monthly_quota: Number(form.monthly_quota),
+      overage_rate: Number(form.overage_rate),
+    }
+    const body = editPlan ? { ...plan, id: editPlan.id, is_active: true } : plan
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.status === 401) { window.location.href = '/admin/login'; return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Failed to save plan')
+        return
+      }
+      setShowModal(false)
+      await fetchPlans()
+    } catch {
+      setError('Failed to save plan')
+    } finally {
+      setSaving(false)
+    }
   }
   return (
     <div>
@@ -29,6 +65,7 @@ export default function AdminPlansPage() {
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>Plans</h1>
         <button onClick={openAdd} style={{ padding: '0.65rem 1.5rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>+ Add Plan</button>
       </div>
+      {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>}
       {loading ? <p style={{ color: '#94a3b8' }}>Loading...</p> : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.2rem' }}>
           {plans.map(p => (
@@ -46,6 +83,7 @@ export default function AdminPlansPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '2rem', width: 400 }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b', marginBottom: '1.5rem' }}>{editPlan ? 'Edit Plan' : 'Add Plan'}</h2>
+            {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>}
             {[['name', 'Plan Name'], ['price', 'Price ($)'], ['monthly_quota', 'Monthly Credits'], ['overage_rate', 'Overage Rate']].map(([k, l]) => (
               <div key={k} style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#374151', marginBottom: '0.3rem' }}>{l}</label>

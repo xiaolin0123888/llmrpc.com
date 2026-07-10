@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAll, getOne, execute } from '@/lib/db'
+import { getAll, getOne, execute, prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/admin-auth'
 import { safeJson } from '@/lib/safe-json'
 
@@ -41,7 +41,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { action, amount } = body || {}
     if (action === 'toggle_ban') {
-      await execute('UPDATE users SET is_banned = NOT is_banned WHERE id = $1', [id])
+      const updated = await execute('UPDATE users SET is_banned = NOT is_banned WHERE id = $1', [id])
+      if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 })
       return NextResponse.json({ success: true })
     }
     if (action === 'add_credits') {
@@ -49,8 +50,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (typeof creditAmount !== 'number' || !Number.isSafeInteger(creditAmount) || creditAmount <= 0 || creditAmount > 10_000_000) {
         return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
       }
-      await execute('UPDATE users SET credits = credits + $1 WHERE id = $2', [creditAmount, id])
-      await execute(`INSERT INTO transactions (user_id, type, amount, description) VALUES ($1, 'ADMIN_ADD', $2, $3)`, [id, creditAmount, `Admin added ${creditAmount} credits`])
+      const updated = await prisma.$transaction(async (tx) => {
+        const users: Array<{ id: string }> = await tx.$queryRawUnsafe(
+          'UPDATE users SET credits = credits + $1 WHERE id = $2 RETURNING id',
+          creditAmount,
+          id
+        )
+        if (!users.length) return false
+
+        await tx.$executeRawUnsafe(
+          "INSERT INTO transactions (user_id, type, amount, description) VALUES ($1, 'ADMIN_ADD', $2, $3)",
+          id,
+          creditAmount,
+          `Admin added ${creditAmount} credits`
+        )
+        return true
+      })
+      if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 })
       return NextResponse.json({ success: true })
     }
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

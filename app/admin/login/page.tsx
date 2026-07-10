@@ -19,7 +19,7 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ email, password })
       })
       if (!res.ok) {
-        setError('Invalid credentials')
+        setError(res.status === 401 ? 'Invalid credentials' : 'Admin sign-in is temporarily unavailable')
         setLoading(false)
         return
       }

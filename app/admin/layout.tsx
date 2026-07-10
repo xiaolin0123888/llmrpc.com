@@ -19,27 +19,42 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
+    if (pathname === '/admin/login') {
+      setChecking(false)
+      return
+    }
+
+    setChecking(true)
     // Verify auth by hitting a lightweight endpoint
     fetch('/api/admin/stats')
       .then(r => {
         if (r.ok) setChecking(false)
-        else router.push('/admin/login')
+        else router.replace('/admin/login')
       })
-      .catch(() => router.push('/admin/login'))
-  }, [pathname])
+      .catch(() => router.replace('/admin/login'))
+  }, [pathname, router])
 
-  const handleLogout = () => {
-    document.cookie = 'admin_token=; path=/; max-age=0';
-    router.push('/admin/login')
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/admin/logout', { method: 'POST' })
+      if (!response.ok) {
+        window.alert('Failed to sign out. Please try again.')
+        return
+      }
+      router.replace('/admin/login')
+      router.refresh()
+    } catch {
+      window.alert('Failed to sign out. Please try again.')
+    }
   }
+
+  if (pathname === '/admin/login') return <>{children}</>
 
   if (checking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
       <div style={{ color: '#64748b' }}>Loading...</div>
     </div>
   )
-
-  if (pathname === '/admin/login') return <>{children}</>
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>

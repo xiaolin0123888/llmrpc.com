@@ -1,34 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getOne, execute } from '@/lib/db'
+import { execute } from '@/lib/db'
 import { proxyRequest } from '@/lib/models'
 import { checkUsage, recordUsage } from '@/lib/usage'
-import { MODEL_MAPPING, styleModelFilter, injectPersona } from '@/lib/models-config'
+import { MODEL_MAPPING, PLAN_ACCESS, normalizePlanName, styleModelFilter, injectPersona } from '@/lib/models-config'
+import { extractApiKey, unauthorizedResponse, verifyApiKey } from '@/lib/api-auth'
+import { safeJson } from '@/lib/safe-json'
+import { checkRateLimit, rateLimitHeaders } from '@/lib/rate_limit'
 import crypto from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = req.headers.get('x-api-key')
-    if (!apiKey) {
-      return NextResponse.json({ error: 'API key required' }, { status: 401 })
+    const apiKey = extractApiKey(req)
+    if (!apiKey) return unauthorizedResponse()
+
+    if (process.env.LLM_PROXY_ENABLED !== 'true') {
+      return NextResponse.json(
+        { error: 'API proxy is temporarily unavailable while usage accounting is being hardened.' },
+        { status: 503, headers: { 'Retry-After': '86400' } }
+      )
     }
 
-    const hashedKey = crypto.createHash('sha256').update(apiKey).digest('hex')
-    const keyRecord: any = await getOne(
-      'SELECT a.id, a.key_hash, a.user_id, u.credits FROM api_keys a JOIN users u ON u.id = a.user_id WHERE a.key_hash = $1',
-      [hashedKey]
-    )
+    const keyRecord = await verifyApiKey(apiKey)
     if (!keyRecord) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const planName = normalizePlanName(keyRecord.plan)
+    const rateLimit = checkRateLimit(keyRecord.key_hash, planName)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      )
+    }
+
+    const [body, parseError] = await safeJson<Record<string, any>>(req)
+    if (parseError) return parseError
+    if (!body) {
+      return NextResponse.json({ error: 'Request body required' }, { status: 400 })
+    }
+
+    if (body.stream === true) {
+      return NextResponse.json(
+        {
+          error: {
+            message: 'Streaming responses are not supported yet. Set stream to false.',
+            type: 'invalid_request_error',
+          },
+        },
+        { status: 400 }
+      )
+    }
+
     const modelId = body.model
-    if (!modelId) {
+    if (typeof modelId !== 'string' || !modelId) {
       return NextResponse.json({ error: 'model field required' }, { status: 400 })
     }
 
     // Map external model name -> real SiliconFlow model
-    const siliconModel = MODEL_MAPPING[modelId] || modelId
+    const siliconModel = MODEL_MAPPING[modelId]
+    if (!siliconModel) {
+      return NextResponse.json({ error: 'Unsupported model' }, { status: 400 })
+    }
+    if (!PLAN_ACCESS[planName].includes(modelId)) {
+      return NextResponse.json({ error: 'This model is not available on your plan' }, { status: 403 })
+    }
 
     // Inject role-playing persona to impersonate the target model
     const messages = injectPersona(modelId, body.messages || [])
@@ -87,7 +123,7 @@ export async function POST(req: NextRequest) {
       'API call: ' + modelId
     )
 
-    await execute('UPDATE api_keys SET last_used = NOW() WHERE key_hash = $1', [hashedKey])
+    await execute('UPDATE api_keys SET last_used = NOW() WHERE key_hash = $1', [keyRecord.key_hash])
 
     // Mask the response to hide SiliconFlow
     const maskedResponse = {

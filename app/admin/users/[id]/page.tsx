@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 
 export default function AdminUserDetailPage() {
@@ -13,28 +13,60 @@ export default function AdminUserDetailPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [creditsAmount, setCreditsAmount] = useState('')
   const [showCreditsModal, setShowCreditsModal] = useState(false)
+  const [error, setError] = useState('')
 
-  const fetchData = async () => {
-    const res = await fetch(`/api/admin/users/${id}`)
-    if (res.status === 401) { router.push('/admin/login'); return }
-    const data = await res.json()
-    setUser(data.user); setKeys(data.keys); setTxs(data.transactions); setLoading(false)
-  }
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`)
+      if (res.status === 401) { router.replace('/admin/login'); return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Failed to load user')
+        setLoading(false)
+        return
+      }
+      const data = await res.json()
+      setUser(data.user); setKeys(data.keys); setTxs(data.transactions); setError(''); setLoading(false)
+    } catch {
+      setError('Failed to load user')
+      setLoading(false)
+    }
+  }, [id, router])
 
-  useEffect(() => { fetchData() }, [id])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const handleAction = async (action: string, extra?: any) => {
     setActionLoading(true)
-    await fetch(`/api/admin/users/${id}`)
-    setActionLoading(false); setShowCreditsModal(false); setCreditsAmount(''); fetchData()
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra }),
+      })
+      if (res.status === 401) { router.replace('/admin/login'); return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Action failed')
+        return
+      }
+      setShowCreditsModal(false)
+      setCreditsAmount('')
+      await fetchData()
+    } catch {
+      setError('Action failed')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   if (loading) return <div style={{ color: '#64748b', padding: '2rem' }}>Loading...</div>
-  if (!user) return <div style={{ color: '#ef4444', padding: '2rem' }}>User not found</div>
+  if (!user) return <div style={{ color: '#ef4444', padding: '2rem' }}>{error || 'User not found'}</div>
 
   return (
     <div>
       <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>← Back</button>
+      {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>}
       <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
@@ -64,10 +96,11 @@ export default function AdminUserDetailPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '2rem', width: 360 }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b', marginBottom: '1.2rem' }}>Add Credits</h2>
+            {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>}
             <input type="number" value={creditsAmount} onChange={e => setCreditsAmount(e.target.value)} placeholder="Enter amount" style={{ width: '100%', padding: '0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.95rem', boxSizing: 'border-box', marginBottom: '1rem' }} />
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowCreditsModal(false); setCreditsAmount('') }} style={{ padding: '0.6rem 1.2rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => handleAction('add_credits', { amount: parseInt(creditsAmount) })} disabled={!creditsAmount} style={{ padding: '0.6rem 1.2rem', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 600, cursor: creditsAmount ? 'pointer' : 'not-allowed', opacity: creditsAmount ? 1 : 0.5 }}>Add</button>
+              <button onClick={() => handleAction('add_credits', { amount: Number(creditsAmount) })} disabled={!creditsAmount || actionLoading} style={{ padding: '0.6rem 1.2rem', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 600, cursor: creditsAmount && !actionLoading ? 'pointer' : 'not-allowed', opacity: creditsAmount && !actionLoading ? 1 : 0.5 }}>{actionLoading ? 'Adding...' : 'Add'}</button>
             </div>
           </div>
         </div>

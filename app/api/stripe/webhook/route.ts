@@ -107,9 +107,11 @@ export async function POST(req: NextRequest) {
           past_due: 'PAST_DUE',
           canceled: 'CANCELLED',
           incomplete: 'INCOMPLETE',
+          incomplete_expired: 'INCOMPLETE',
+          paused: 'INCOMPLETE',
           unpaid: 'PAST_DUE',
         }
-        const status = statusMap[sub.status] || 'ACTIVE'
+        const status = statusMap[sub.status] || 'INCOMPLETE'
 
         await execute(
           `UPDATE subscriptions SET status = $1, current_period_start = to_timestamp($2), current_period_end = to_timestamp($3)

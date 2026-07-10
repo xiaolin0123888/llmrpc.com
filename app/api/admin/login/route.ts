@@ -9,32 +9,32 @@ export async function POST(req: Request) {
 
     const email = body?.email?.trim()
     const password = body?.password
-    
-    if (password !== process.env.ADMIN_PASSWORD) {
+
+    const adminEmail = process.env.ADMIN_EMAIL
+    const adminPassword = process.env.ADMIN_PASSWORD
+    if (!adminEmail || !adminPassword || !process.env.JWT_SECRET) {
+      console.error('[admin login] Required authentication environment variables are missing')
+      return NextResponse.json({ error: 'Server error' }, { status: 503 })
+    }
+
+    if (!email || !password || password !== adminPassword) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@llmrpc.com'
     if (email !== adminEmail) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const token = signAdminToken({ id: 1, email: adminEmail })
-
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-
-    // Build cookie string without template literal to avoid escaping issues
-    const cookieValue = [
-      'admin_token=' + encodeURIComponent(token),
-      'Path=/',
-      'HttpOnly',
-      'Secure',
-      'SameSite=Lax',
-      'Expires=' + expires.toUTCString(),
-    ].join('; ')
+    const token = signAdminToken({ id: 1, email: adminEmail, purpose: 'admin' })
 
     const response = NextResponse.json({ success: true })
-    response.headers.set('Set-Cookie', cookieValue)
+    response.cookies.set('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 2 * 60 * 60,
+      path: '/',
+    })
     return response
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/', '/announcements', '/login', '/register', '/models', '/billing', '/privacy', '/refund', '/terms', '/referrals', '/forgot-password', '/reset-password']
+const PUBLIC_PATHS = ['/', '/announcements', '/login', '/register', '/models', '/billing', '/privacy', '/refund', '/terms', '/referrals', '/forgot-password', '/reset-password', '/verify-email']
 const ADMIN_PATHS = ['/admin/login']
 
 // Paths that should NEVER redirect to an HTML login page.

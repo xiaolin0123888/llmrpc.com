@@ -7,25 +7,66 @@ export default function AdminAnnouncementsPage() {
   const [editItem, setEditItem] = useState<any>(null)
   const [form, setForm] = useState({ title: '', content: '', show_homepage: false })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const fetchData = async () => {
-    const res = await fetch('/api/admin/announcements')
-    if (res.status === 401) { window.location.href = '/admin/login'; return }
-    const data = await res.json(); setAnnouncements(data.announcements); setLoading(false)
+    try {
+      const res = await fetch('/api/admin/announcements')
+      if (res.status === 401) { window.location.href = '/admin/login'; return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Failed to load announcements')
+        setLoading(false)
+        return
+      }
+      const data = await res.json(); setAnnouncements(data.announcements); setError(''); setLoading(false)
+    } catch {
+      setError('Failed to load announcements')
+      setLoading(false)
+    }
   }
   useEffect(() => { fetchData() }, [])
-  const openAdd = () => { setEditItem(null); setForm({ title: '', content: '', show_homepage: false }); setShowModal(true) }
-  const openEdit = (a: any) => { setEditItem(a); setForm({ title: a.title, content: a.content, show_homepage: a.show_homepage }); setShowModal(true) }
+  const openAdd = () => { setError(''); setEditItem(null); setForm({ title: '', content: '', show_homepage: false }); setShowModal(true) }
+  const openEdit = (a: any) => { setError(''); setEditItem(a); setForm({ title: a.title, content: a.content, show_homepage: a.show_homepage }); setShowModal(true) }
   const handleSave = async () => {
     setSaving(true)
+    setError('')
     const method = editItem ? 'PUT' : 'POST'
     const body = editItem ? { ...form, id: editItem.id } : form
-    await fetch('/api/admin/announcements')
-    setShowModal(false); fetchData(); setSaving(false)
+    try {
+      const res = await fetch('/api/admin/announcements', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.status === 401) { window.location.href = '/admin/login'; return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Failed to save announcement')
+        return
+      }
+      setShowModal(false)
+      await fetchData()
+    } catch {
+      setError('Failed to save announcement')
+    } finally {
+      setSaving(false)
+    }
   }
   const handleDelete = async (id: number) => {
     if (!confirm('Delete?')) return
-    await fetch(`/api/admin/announcements?id=${id}`)
-    fetchData()
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/announcements?id=${id}`, { method: 'DELETE' })
+      if (res.status === 401) { window.location.href = '/admin/login'; return }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error || 'Failed to delete announcement')
+        return
+      }
+      await fetchData()
+    } catch {
+      setError('Failed to delete announcement')
+    }
   }
   return (
     <div>
@@ -33,6 +74,7 @@ export default function AdminAnnouncementsPage() {
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>Announcements</h1>
         <button onClick={openAdd} style={{ padding: '0.65rem 1.5rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>+ New Announcement</button>
       </div>
+      {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>}
       {loading ? <p style={{ color: '#94a3b8' }}>Loading...</p> : announcements.length === 0 ? <p style={{ color: '#94a3b8' }}>No announcements yet</p> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {announcements.map(a => (
@@ -59,6 +101,7 @@ export default function AdminAnnouncementsPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '2rem', width: 520 }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b', marginBottom: '1.5rem' }}>{editItem ? 'Edit' : 'New'} Announcement</h2>
+            {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>}
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#374151', marginBottom: '0.3rem' }}>Title</label>
               <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={{ width: '100%', padding: '0.65rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.9rem', boxSizing: 'border-box' }} />

@@ -27,8 +27,6 @@ function BillingContent() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [usage, setUsage] = useState<{ used: number; quota: number; daysLeft: number } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [paypalLoading, setPaypalLoading] = useState(false)
-  const [subscribeLoading, setSubscribeLoading] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -52,98 +50,12 @@ function BillingContent() {
     const stripe = searchParams.get('stripe')
     if (!stripe) return
     if (stripe === 'success') {
-      showNotification('success', 'Subscription activated! 🎉')
+      showNotification('success', 'Payment received. Subscription status is being confirmed.')
     } else if (stripe === 'cancelled') {
       showNotification('error', 'Subscription was cancelled.')
     }
     window.history.replaceState({}, '', '/billing')
   }, [searchParams, showNotification])
-
-  const subscribeToPlan = useCallback(async (planName: string) => {
-    setSubscribeLoading(planName)
-    try {
-      const res = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planName }),
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        showNotification('error', data.error || 'Failed to start subscription.')
-        setSubscribeLoading(null)
-      }
-    } catch {
-      showNotification('error', 'Network error. Please try again.')
-      setSubscribeLoading(null)
-    }
-  }, [showNotification])
-
-  // Handle PayPal return
-  const paypalHandledRef = useRef(false)
-
-  useEffect(() => {
-    const status = searchParams.get('paypal')
-    if (paypalHandledRef.current || !status) return
-
-    if (status === 'success') {
-      paypalHandledRef.current = true
-      const orderId = sessionStorage.getItem('paypal_order_id')
-      if (orderId) {
-        sessionStorage.removeItem('paypal_order_id')
-        capturePaypalOrder(orderId)
-      }
-      window.history.replaceState({}, '', '/billing')
-    } else if (status === 'cancelled') {
-      paypalHandledRef.current = true
-      showNotification('error', 'PayPal payment was cancelled.')
-      window.history.replaceState({}, '', '/billing')
-    }
-  }, [searchParams, showNotification])
-
-  const capturePaypalOrder = useCallback(async (orderId: string) => {
-    setPaypalLoading(true)
-    try {
-      const res = await fetch('/api/paypal/capture-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setCredits(data.credits)
-        showNotification('success', `Successfully added ${Number(data.tokens).toLocaleString()} credits!`)
-      } else {
-        showNotification('error', data.error || 'Payment capture failed.')
-      }
-    } catch {
-      showNotification('error', 'Network error during payment capture.')
-    }
-    setPaypalLoading(false)
-  }, [showNotification])
-
-  const purchaseWithPayPal = useCallback(async (pkgKey: string) => {
-    setPaypalLoading(true)
-    try {
-      const res = await fetch('/api/paypal/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: pkgKey }),
-      })
-      const data = await res.json()
-      if (data.orderId && data.approveUrl) {
-        sessionStorage.setItem('paypal_order_id', data.orderId)
-        window.location.href = data.approveUrl
-      } else {
-        showNotification('error', data.error || 'Failed to create PayPal order.')
-        setPaypalLoading(false)
-      }
-    } catch {
-      showNotification('error', 'Network error. Please try again.')
-      setPaypalLoading(false)
-    }
-  }, [showNotification])
 
   useEffect(() => {
     // Independent fetches so one failure doesn't block the other
@@ -159,8 +71,6 @@ function BillingContent() {
       setLoading(false)
     })
   }, [])
-
-  const isLoading = paypalLoading
 
   // Build display plans
   const displayPlans = [
@@ -248,7 +158,6 @@ function BillingContent() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
           {displayPlans.map((plan: any) => {
             const isCurrent = plan.name.toUpperCase() === currentPlan.toUpperCase()
-            const loadingPlan = subscribeLoading === plan.name
             return (
               <div
                 key={plan.id || plan.name}
@@ -294,16 +203,16 @@ function BillingContent() {
                 <div style={{ flex: 1 }} />
 
                 <button
-                  disabled={isCurrent || plan.isFree || loadingPlan}
-                  onClick={() => subscribeToPlan(plan.name)}
+                  disabled
+                  title={!isCurrent && !plan.isFree ? 'New subscriptions are temporarily unavailable' : undefined}
                   className={`billing-plan-btn${isCurrent ? ' current' : plan.isFree ? '' : ' active'}`}
-                  style={plan.isFree && !isCurrent ? {
+                  style={!isCurrent ? {
                     background: '#f3f4f6',
                     color: '#d1d5db',
-                    cursor: 'default',
+                    cursor: 'not-allowed',
                   } : {}}
                 >
-                  {loadingPlan ? 'Processing...' : isCurrent ? 'Current plan' : plan.isFree ? 'Free' : `Subscribe — $${plan.price % 1 === 0 ? Number(plan.price).toFixed(0) : Number(plan.price).toFixed(2)}`}
+                  {isCurrent ? 'Current plan' : plan.isFree ? 'Free' : 'Temporarily unavailable'}
                 </button>
 
                 {/* Manage subscription */}
@@ -345,14 +254,14 @@ function BillingContent() {
                 <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                   <button
                     className="billing-pkg-btn paypal"
-                    onClick={() => purchaseWithPayPal(pkg.key)}
-                    disabled={isLoading}
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                    disabled
+                    title="PayPal top-ups are temporarily unavailable"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', opacity: 0.55, cursor: 'not-allowed' }}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .76-.659h6.155c2.556 0 4.17.558 4.948 2.787.506 1.448.37 3.22-.37 4.545a5.513 5.513 0 0 1-3.037 2.863c-.98.371-2.036.558-3.137.558H8.833a.77.77 0 0 0-.758.658l-1.02 12.88a.64.64 0 0 1-.633.54l-.346.04z"/>
                     </svg>
-                    PayPal
+                    Temporarily unavailable
                   </button>
                 </div>
               </div>

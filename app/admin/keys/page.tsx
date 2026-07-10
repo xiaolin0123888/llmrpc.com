@@ -1,19 +1,19 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 export default function AdminKeysPage() {
   const [keys, setKeys] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const fetchKeys = async (p = 1, s = search) => {
+  const fetchKeys = useCallback(async (p = 1, s = '') => {
     setLoading(true)
     const res = await fetch(`/api/admin/keys?page=${p}&limit=20&search=${encodeURIComponent(s)}`)
     if (res.status === 401) { window.location.href = '/admin/login'; return }
     const data = await res.json()
     setKeys(data.keys); setTotal(data.total); setPage(p); setLoading(false)
-  }
-  useEffect(() => { fetchKeys() }, [])
+  }, [])
+  useEffect(() => { fetchKeys() }, [fetchKeys])
   const totalPages = Math.ceil(total / 20)
   return (
     <div>
@@ -52,9 +52,9 @@ export default function AdminKeysPage() {
       </div>
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1.2rem' }}>
-          <button onClick={() => fetchKeys(page - 1)} disabled={page <= 1} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page <= 1 ? 'not-allowed' : 'pointer', color: page <= 1 ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Prev</button>
+          <button onClick={() => fetchKeys(page - 1, search)} disabled={page <= 1} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page <= 1 ? 'not-allowed' : 'pointer', color: page <= 1 ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Prev</button>
           <span style={{ padding: '0.5rem 1rem', color: '#64748b', fontSize: '0.875rem', lineHeight: '2' }}>Page {page} of {totalPages}</span>
-          <button onClick={() => fetchKeys(page + 1)} disabled={page >= totalPages} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', color: page >= totalPages ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Next</button>
+          <button onClick={() => fetchKeys(page + 1, search)} disabled={page >= totalPages} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', color: page >= totalPages ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Next</button>
         </div>
       )}
     </div>

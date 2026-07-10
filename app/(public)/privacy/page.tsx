@@ -6,7 +6,7 @@ export default function PrivacyPage() {
         <p style={{ marginBottom: '1rem' }}>Last updated: May 2026</p>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>1. Introduction</h2>
-        <p style={{ marginBottom: '1.5rem' }}>LLMRpc ("we", "us", or "our") operates the website llmrpc.com (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal information when you use our Service.</p>
+        <p style={{ marginBottom: '1.5rem' }}>LLMRpc (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the website llmrpc.com (the &quot;Service&quot;). This page informs you of our policies regarding the collection, use, and disclosure of personal information when you use our Service.</p>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>2. Information We Collect</h2>
         <ul style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem' }}>

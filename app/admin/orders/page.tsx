@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -8,14 +8,14 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
   const statusColors: Record<string, string> = { completed: '#dcfce7', pending: '#fef9c3', refunded: '#fef2f2' }
   const statusTextColors: Record<string, string> = { completed: '#16a34a', pending: '#ca8a04', refunded: '#dc2626' }
-  const fetchOrders = async (p = 1, s = status) => {
+  const fetchOrders = useCallback(async (p = 1, s = '') => {
     setLoading(true)
     const res = await fetch(`/api/admin/orders?page=${p}&status=${s}`)
     if (res.status === 401) { window.location.href = '/admin/login'; return }
     const data = await res.json()
     setOrders(data.orders); setTotal(data.total); setPage(p); setLoading(false)
-  }
-  useEffect(() => { fetchOrders() }, [])
+  }, [])
+  useEffect(() => { fetchOrders() }, [fetchOrders])
   const totalPages = Math.ceil(total / 20)
   return (
     <div>
@@ -58,9 +58,9 @@ export default function AdminOrdersPage() {
       </div>
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1.2rem' }}>
-          <button onClick={() => fetchOrders(page - 1)} disabled={page <= 1} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page <= 1 ? 'not-allowed' : 'pointer', color: page <= 1 ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Prev</button>
+          <button onClick={() => fetchOrders(page - 1, status)} disabled={page <= 1} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page <= 1 ? 'not-allowed' : 'pointer', color: page <= 1 ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Prev</button>
           <span style={{ padding: '0.5rem 1rem', color: '#64748b', fontSize: '0.875rem', lineHeight: '2' }}>Page {page} of {totalPages}</span>
-          <button onClick={() => fetchOrders(page + 1)} disabled={page >= totalPages} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', color: page >= totalPages ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Next</button>
+          <button onClick={() => fetchOrders(page + 1, status)} disabled={page >= totalPages} style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', color: page >= totalPages ? '#cbd5e1' : '#475569', fontSize: '0.875rem' }}>Next</button>
         </div>
       )}
     </div>

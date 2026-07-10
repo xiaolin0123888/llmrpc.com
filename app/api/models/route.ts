@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getModels } from '@/lib/models'
+import { NextResponse } from 'next/server'
 
-export async function GET(req: NextRequest) {
-  const models = await getModels()
-  return NextResponse.json({ models })
+export async function GET() {
+  return NextResponse.json(
+    { error: 'This legacy models endpoint is retired. Use /v1/models with API key authentication.' },
+    { status: 410 }
+  )
 }

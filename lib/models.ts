@@ -1,7 +1,17 @@
 import axios from 'axios'
 
+function getSiliconFlowBaseUrl(): string {
+  const configuredUrl = (process.env.SILICONFLOW_API_URL || 'https://api.siliconflow.cn/v1')
+    .trim()
+    .replace(/\/+$/, '')
+
+  // Backwards compatibility: older deployments used the full chat endpoint
+  // even though this value is consumed as an Axios base URL.
+  return configuredUrl.replace(/\/chat\/completions$/, '')
+}
+
 const siliconflow = axios.create({
-  baseURL: process.env.SILICONFLOW_API_URL || 'https://api.siliconflow.cn/v1',
+  baseURL: getSiliconFlowBaseUrl(),
   headers: {
     'Authorization': `Bearer ${process.env.SILICONFLOW_API_KEY}`,
     'Content-Type': 'application/json',

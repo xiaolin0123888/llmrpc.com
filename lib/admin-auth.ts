@@ -6,6 +6,7 @@ const TOKEN_EXPIRY = '2h'
 export type AdminPayload = {
   id: number
   email: string
+  purpose: 'admin'
 }
 
 function getSecret(): string {
@@ -26,8 +27,11 @@ export function verifyAdmin(req: NextRequest): AdminPayload | null {
   const token = req.headers.get('x-admin-token') || getCookie(req, 'admin_token')
   if (!token) return null
   try {
-    const decoded = jwt.verify(token, getSecret()) as AdminPayload
-    return decoded
+    const decoded = jwt.verify(token, getSecret())
+    if (typeof decoded !== 'object' || decoded === null) return null
+    if (decoded.purpose !== 'admin') return null
+    if (!Number.isSafeInteger(decoded.id) || typeof decoded.email !== 'string' || !decoded.email) return null
+    return { id: decoded.id, email: decoded.email, purpose: 'admin' }
   } catch {
     return null
   }

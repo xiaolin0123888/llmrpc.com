@@ -6,7 +6,7 @@ export default function TermsPage() {
         <p style={{ marginBottom: '1rem' }}>Last updated: May 2026</p>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>1. Acceptance of Terms</h2>
-        <p style={{ marginBottom: '1.5rem' }}>By accessing or using LLMRpc ("the Service"), you agree to be bound by these Terms of Service.</p>
+        <p style={{ marginBottom: '1.5rem' }}>By accessing or using LLMRpc (&quot;the Service&quot;), you agree to be bound by these Terms of Service.</p>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>2. Service Description</h2>
         <p style={{ marginBottom: '1.5rem' }}>LLMRpc provides access to AI model inference services via API. We do not guarantee uninterrupted or error-free operation.</p>

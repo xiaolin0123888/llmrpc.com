@@ -3,6 +3,14 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   experimental: {},
   poweredByHeader: false,
+  async rewrites() {
+    return [
+      {
+        source: '/v1/:path*',
+        destination: '/api/v1/:path*',
+      },
+    ]
+  },
   async headers() {
     return [
       {

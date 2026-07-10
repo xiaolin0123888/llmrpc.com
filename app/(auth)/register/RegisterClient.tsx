@@ -54,10 +54,10 @@ export default function RegisterClient() {
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
           <div style={{ fontSize: '20px', fontWeight: 700, color: '#111111', marginBottom: '12px' }}>Check your inbox!</div>
           <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.6, marginBottom: '24px' }}>
-            We've sent a verification link to <strong>{registeredEmail}</strong>. Click the link to verify your email and receive <strong style={{ color: '#2563eb' }}>100,000 free credits</strong>.
+            We&apos;ve sent a verification link to <strong>{registeredEmail}</strong>. Click the link to verify your email and receive <strong style={{ color: '#2563eb' }}>100,000 free credits</strong>.
           </p>
           <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.6, marginBottom: '24px' }}>
-            The verification link expires in 24 hours. If you don't see the email, check your spam folder.
+            The verification link expires in 24 hours. If you don&apos;t see the email, check your spam folder.
           </p>
           <div style={{ fontSize: '13px', color: '#6b7280' }}>
             Already verified?{' '}
