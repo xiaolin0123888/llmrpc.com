@@ -47,7 +47,7 @@ export default function AdminDashboard() {
                 <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '0.6rem 0', color: '#475569', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.email ?? 'N/A'}</td>
                   <td style={{ padding: '0.6rem 0', color: '#475569' }}>{o.plan_name ?? 'Credits'}</td>
-                  <td style={{ padding: '0.6rem 0', textAlign: 'right', fontWeight: 600 }}>${o.amount}</td>
+                  <td style={{ padding: '0.6rem 0', textAlign: 'right', fontWeight: 600 }}>${Number(o.amount).toFixed(2)}</td>
                   <td style={{ padding: '0.6rem 0' }}><span style={{ padding: '0.15rem 0.5rem', borderRadius: 99, fontSize: '0.75rem', background: o.status === 'completed' ? '#dcfce7' : '#fef9c3', color: o.status === 'completed' ? '#16a34a' : '#ca8a04' }}>{o.status}</span></td>
                 </tr>
               ))}</tbody>
