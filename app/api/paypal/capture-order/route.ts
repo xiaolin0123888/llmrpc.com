@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getOne, prisma } from '@/lib/db'
-import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: NextRequest) {
@@ -15,15 +14,22 @@ export async function POST(req: NextRequest) {
     const orderId = body?.orderId
     if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 })
 
-    if (!isPayPalConfigured()) {
-      return NextResponse.json({ error: 'PayPal is temporarily unavailable' }, { status: 503 })
+    const clientId = process.env.PAYPAL_CLIENT_ID
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET
+    const mode = process.env.PAYPAL_MODE || 'sandbox'
+
+    if (!clientId || !clientSecret) {
+      return NextResponse.json({ error: 'PayPal not configured' }, { status: 500 })
     }
 
-    const { accessToken, baseUrl: paypalBaseUrl } = await getPayPalAccess()
+    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+    const endpoint = mode === 'live'
+      ? `https://api-m.paypal.com/v2/checkout/orders/${orderId}/capture`
+      : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`
 
-    const ppRes = await fetch(`${paypalBaseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+    const ppRes = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${authHeader}` },
     })
 
     if (!ppRes.ok) {
@@ -62,7 +68,7 @@ export async function POST(req: NextRequest) {
     const completed = await prisma.$transaction(async (tx) => {
       const rows: any[] = await tx.$queryRawUnsafe(
         `UPDATE transactions
-         SET description = $1, metadata = $2
+         SET description = $1, metadata = $2::jsonb
          WHERE id = $3
            AND user_id = $4
            AND metadata::jsonb->>'status' = 'pending'

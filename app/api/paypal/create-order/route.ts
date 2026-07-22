@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { execute } from '@/lib/db'
-import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
 
 const CREDIT_PACKAGES: Record<string, { tokens: number; price: string }> = {
@@ -24,11 +23,18 @@ export async function POST(req: NextRequest) {
     if (!pkgKey || !pkg) return NextResponse.json({ error: 'Invalid package' }, { status: 400 })
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://llmrpc.com'
-    if (!isPayPalConfigured()) {
-      return NextResponse.json({ error: 'PayPal is temporarily unavailable' }, { status: 503 })
+    const clientId = process.env.PAYPAL_CLIENT_ID
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET
+    const mode = process.env.PAYPAL_MODE || 'sandbox'
+
+    if (!clientId || !clientSecret) {
+      return NextResponse.json({ error: 'PayPal not configured' }, { status: 500 })
     }
 
-    const { accessToken, baseUrl: paypalBaseUrl } = await getPayPalAccess()
+    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+    const endpoint = mode === 'live'
+      ? 'https://api-m.paypal.com/v2/checkout/orders'
+      : 'https://api-m.sandbox.paypal.com/v2/checkout/orders'
 
     const payload = {
       intent: 'CAPTURE',
@@ -46,9 +52,9 @@ export async function POST(req: NextRequest) {
       },
     }
 
-    const ppRes = await fetch(`${paypalBaseUrl}/v2/checkout/orders`, {
+    const ppRes = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${authHeader}` },
       body: JSON.stringify(payload),
     })
 
@@ -63,7 +69,7 @@ export async function POST(req: NextRequest) {
     // Store pending transaction
     await execute(
       `INSERT INTO transactions (user_id, type, amount, description, metadata)
-       VALUES ($1, 'PURCHASE', $2, $3, $4)`,
+       VALUES ($1, 'PURCHASE', $2, $3, $4::jsonb)`,
       [
         session.user.userId,
         pkg.tokens,
