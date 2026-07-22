@@ -28,7 +28,6 @@ function BillingContent() {
   const [usage, setUsage] = useState<{ used: number; quota: number; daysLeft: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [paypalLoading, setPaypalLoading] = useState(false)
-  const [subscribeLoading, setSubscribeLoading] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -46,39 +45,6 @@ function BillingContent() {
       if (notifTimerRef.current) clearTimeout(notifTimerRef.current)
     }
   }, [])
-
-  // Handle Stripe return
-  useEffect(() => {
-    const stripe = searchParams.get('stripe')
-    if (!stripe) return
-    if (stripe === 'success') {
-      showNotification('success', 'Subscription activated! 🎉')
-    } else if (stripe === 'cancelled') {
-      showNotification('error', 'Subscription was cancelled.')
-    }
-    window.history.replaceState({}, '', '/billing')
-  }, [searchParams, showNotification])
-
-  const subscribeToPlan = useCallback(async (planName: string) => {
-    setSubscribeLoading(planName)
-    try {
-      const res = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planName }),
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        showNotification('error', data.error || 'Failed to start subscription.')
-        setSubscribeLoading(null)
-      }
-    } catch {
-      showNotification('error', 'Network error. Please try again.')
-      setSubscribeLoading(null)
-    }
-  }, [showNotification])
 
   // Handle PayPal return
   const paypalHandledRef = useRef(false)
@@ -248,7 +214,6 @@ function BillingContent() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
           {displayPlans.map((plan: any) => {
             const isCurrent = plan.name.toUpperCase() === currentPlan.toUpperCase()
-            const loadingPlan = subscribeLoading === plan.name
             return (
               <div
                 key={plan.id || plan.name}
@@ -294,35 +259,16 @@ function BillingContent() {
                 <div style={{ flex: 1 }} />
 
                 <button
-                  disabled={isCurrent || plan.isFree || loadingPlan}
-                  onClick={() => subscribeToPlan(plan.name)}
+                  disabled
                   className={`billing-plan-btn${isCurrent ? ' current' : plan.isFree ? '' : ' active'}`}
-                  style={plan.isFree && !isCurrent ? {
+                  style={!isCurrent ? {
                     background: '#f3f4f6',
                     color: '#d1d5db',
-                    cursor: 'default',
+                    cursor: 'not-allowed',
                   } : {}}
                 >
-                  {loadingPlan ? 'Processing...' : isCurrent ? 'Current plan' : plan.isFree ? 'Free' : `Subscribe — $${plan.price % 1 === 0 ? Number(plan.price).toFixed(0) : Number(plan.price).toFixed(2)}`}
+                  {isCurrent ? 'Current plan' : plan.isFree ? 'Free' : 'Temporarily unavailable'}
                 </button>
-
-                {/* Manage subscription */}
-                {isCurrent && !plan.isFree && (
-                  <button
-                    onClick={async () => {
-                      const res = await fetch('/api/stripe/portal', { method: 'POST' })
-                      const data = await res.json()
-                      if (data.url) window.location.href = data.url
-                    }}
-                    style={{
-                      fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.5rem',
-                      textAlign: 'center', textDecoration: 'underline',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    Manage subscription →
-                  </button>
-                )}
               </div>
             )
           })}
