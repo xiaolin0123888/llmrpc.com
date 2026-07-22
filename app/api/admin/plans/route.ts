@@ -8,7 +8,16 @@ export async function GET(req: NextRequest) {
   if ('error' in auth) return auth.error
   try {
     const plans = await getAll('SELECT * FROM plans ORDER BY price ASC')
-    return NextResponse.json({ plans })
+    // Convert BigInt values to numbers for JSON serialization
+    const cleaned = plans.map((p: any) => ({
+      id: Number(p.id),
+      name: p.name,
+      price: Number(p.price),
+      monthly_quota: Number(p.monthly_quota),
+      overage_rate: Number(p.overage_rate),
+      is_active: p.is_active,
+    }))
+    return NextResponse.json({ plans: cleaned })
   } catch (err) { console.error(err); return NextResponse.json({ error: 'Internal error' }, { status: 500 }) }
 }
 
