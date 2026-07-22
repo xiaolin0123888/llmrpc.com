@@ -19,6 +19,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
+    // Skip auth check on login page
+    if (pathname === '/admin/login') {
+      setChecking(false)
+      return
+    }
     // Verify auth by hitting a lightweight endpoint
     fetch('/api/admin/stats')
       .then(r => {
