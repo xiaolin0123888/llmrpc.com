@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getOne, prisma } from '@/lib/db'
+import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
 
 export async function POST(req: NextRequest) {
@@ -14,22 +15,15 @@ export async function POST(req: NextRequest) {
     const orderId = body?.orderId
     if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 })
 
-    const clientId = process.env.PAYPAL_CLIENT_ID
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET
-    const mode = process.env.PAYPAL_MODE || 'sandbox'
-
-    if (!clientId || !clientSecret) {
-      return NextResponse.json({ error: 'PayPal not configured' }, { status: 500 })
+    if (!isPayPalConfigured()) {
+      return NextResponse.json({ error: 'PayPal is temporarily unavailable' }, { status: 503 })
     }
 
-    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-    const endpoint = mode === 'live'
-      ? `https://api-m.paypal.com/v2/checkout/orders/${orderId}/capture`
-      : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`
+    const { accessToken, baseUrl: paypalBaseUrl } = await getPayPalAccess()
 
-    const ppRes = await fetch(endpoint, {
+    const ppRes = await fetch(`${paypalBaseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${authHeader}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     })
 
     if (!ppRes.ok) {

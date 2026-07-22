@@ -7,7 +7,9 @@ import crypto from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization')
     const apiKey = req.headers.get('x-api-key')
+      || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null)
     if (!apiKey) {
       return NextResponse.json({ error: 'API key required' }, { status: 401 })
     }
