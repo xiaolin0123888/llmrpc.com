@@ -32,10 +32,10 @@ export async function GET(req: NextRequest) {
 
     const orders = await getAll(`
       SELECT * FROM (
-        SELECT o.id, o.plan_name, o.amount, o.status, o.created_at, u.email, 'order' as source
+        SELECT o.id::bigint, o.plan_name, o.amount::numeric, o.status, o.created_at, u.email, 'order' as source
         FROM orders o LEFT JOIN users u ON o.user_id = u.id
         UNION ALL
-        SELECT t.id, 'Credits' as plan_name, t.amount, COALESCE(t.metadata::jsonb->>'status', 'pending') as status, t.created_at, u.email, 'transaction' as source
+        SELECT t.id::bigint, 'Credits' as plan_name, t.amount::numeric, COALESCE(t.metadata::jsonb->>'status', 'pending') as status, t.created_at, u.email, 'transaction' as source
         FROM transactions t LEFT JOIN users u ON t.user_id = u.id
         WHERE t.type = 'PURCHASE'
       ) combined
