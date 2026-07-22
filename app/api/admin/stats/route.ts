@@ -11,17 +11,38 @@ export async function GET(req: NextRequest) {
     const [totalUsers, todayNew, totalRevenue, activeKeys] = await Promise.all([
       getOne('SELECT COUNT(*)::int as c FROM users'),
       getOne('SELECT COUNT(*)::int as c FROM users WHERE created_at >= $1', [new Date(now.getFullYear(), now.getMonth(), now.getDate())]),
-      getOne("SELECT COALESCE(SUM(amount), 0)::numeric as t FROM orders WHERE status = $1", ['completed']),
+      getOne(`
+        SELECT COALESCE(SUM(amount), 0)::numeric as t FROM (
+          SELECT amount FROM orders WHERE status = 'completed'
+          UNION ALL
+          SELECT (COALESCE((metadata::jsonb->>'price')::numeric, amount::numeric, 0)) FROM transactions
+          WHERE type = 'PURCHASE' AND metadata::jsonb->>'status' = 'completed'
+        ) sub
+      `),
       getOne('SELECT COUNT(*)::int as c FROM api_keys'),
     ])
     const recentOrders = await getAll(`
-      SELECT o.id, o.plan_name, o.amount, o.status, o.created_at, u.email
-      FROM orders o LEFT JOIN users u ON o.user_id = u.id
-      ORDER BY o.created_at DESC LIMIT 5
+      SELECT id, plan_name, amount, status, created_at, email FROM (
+        SELECT o.id::text, o.plan_name, o.amount::numeric, o.status, o.created_at::timestamptz as created_at, u.email
+        FROM orders o LEFT JOIN users u ON o.user_id = u.id
+        UNION ALL
+        SELECT t.id, 'Credits', COALESCE((t.metadata::jsonb->>'price')::numeric, t.amount::numeric, 0), COALESCE(t.metadata::jsonb->>'status', 'pending'), t.created_at, u.email
+        FROM transactions t LEFT JOIN users u ON t.user_id = u.id
+        WHERE t.type = 'PURCHASE'
+      ) combined
+      ORDER BY created_at DESC LIMIT 5
     `)
     const revenueByDay = await getAll(`
-      SELECT DATE(created_at) as date, SUM(amount) as total FROM orders
-      WHERE status = 'completed' AND created_at >= $1 GROUP BY DATE(created_at) ORDER BY date
+      SELECT date::text, SUM(total) as total FROM (
+        SELECT DATE(created_at) as date, SUM(amount) as total FROM orders
+        WHERE status = 'completed' AND created_at >= $1 GROUP BY DATE(created_at)
+        UNION ALL
+        SELECT DATE(created_at) as date, SUM(COALESCE((metadata::jsonb->>'price')::numeric, amount::numeric, 0)) as total
+        FROM transactions
+        WHERE type = 'PURCHASE' AND metadata::jsonb->>'status' = 'completed' AND created_at >= $1
+        GROUP BY DATE(created_at)
+      ) combined
+      GROUP BY date ORDER BY date
     `, [thirtyDaysAgo])
     const topUsers = await getAll(`
       SELECT u.id, u.email, u.credits, COUNT(a.id)::int as key_count FROM users u
