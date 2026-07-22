@@ -22,20 +22,20 @@ export async function GET(req: NextRequest) {
 
     const countRow = await getOne(`
       SELECT COUNT(*)::int as total FROM (
-        SELECT o.id FROM orders o WHERE 1=1 ${status ? `AND o.status = $1` : ''}
+        SELECT o.id::text as id FROM orders o ${status ? `WHERE o.status = $1` : ''}
         UNION ALL
         SELECT t.id FROM transactions t
         WHERE t.type = 'PURCHASE'
-        ${status ? `AND (CASE WHEN $1 = 'pending' THEN t.metadata::jsonb->>'status' = 'pending' WHEN $1 = 'completed' THEN t.metadata::jsonb->>'status' = 'completed' WHEN $1 = 'refunded' THEN t.metadata::jsonb->>'status' = 'refunded' END)` : ''}
+        ${status ? `AND t.metadata::jsonb->>'status' = $1` : ''}
       ) sub
     `, params)
 
     const orders = await getAll(`
       SELECT * FROM (
-        SELECT o.id::bigint, o.plan_name, o.amount::numeric, o.status, o.created_at, u.email, 'order' as source
+        SELECT o.id::text as id, o.plan_name, o.amount::numeric, o.status, o.created_at::timestamptz as created_at, u.email
         FROM orders o LEFT JOIN users u ON o.user_id = u.id
         UNION ALL
-        SELECT t.id::bigint, 'Credits' as plan_name, t.amount::numeric, COALESCE(t.metadata::jsonb->>'status', 'pending') as status, t.created_at, u.email, 'transaction' as source
+        SELECT t.id, 'Credits' as plan_name, t.amount::numeric, COALESCE(t.metadata::jsonb->>'status', 'pending') as status, t.created_at, u.email
         FROM transactions t LEFT JOIN users u ON t.user_id = u.id
         WHERE t.type = 'PURCHASE'
       ) combined
