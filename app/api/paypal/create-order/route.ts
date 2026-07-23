@@ -4,11 +4,19 @@ import { execute } from '@/lib/db'
 import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
 
+const PAYPAL_TIMEOUT_MS = 30_000
+
 const CREDIT_PACKAGES: Record<string, { tokens: number; price: string }> = {
   '100K': { tokens: 100_000,  price: '1.00' },
   '500K': { tokens: 500_000,  price: '5.00' },
   '1M':   { tokens: 1_000_000, price: '10.00' },
   '5M':   { tokens: 5_000_000, price: '45.00' },
+}
+
+function abortableFetch(url: string, init: RequestInit, timeoutMs: number): ReturnType<typeof fetch> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
 export async function POST(req: NextRequest) {
@@ -46,11 +54,11 @@ export async function POST(req: NextRequest) {
       },
     }
 
-    const ppRes = await fetch(`${paypalBaseUrl}/v2/checkout/orders`, {
+    const ppRes = await abortableFetch(`${paypalBaseUrl}/v2/checkout/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(payload),
-    })
+    }, PAYPAL_TIMEOUT_MS)
 
     if (!ppRes.ok) {
       const err = await ppRes.text()
@@ -76,7 +84,11 @@ export async function POST(req: NextRequest) {
       orderId: order.id,
       approveUrl: order.links?.find((l: any) => l.rel === 'approve')?.href,
     })
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      console.error('[paypal create-order] PayPal request timed out')
+      return NextResponse.json({ error: 'PayPal request timed out' }, { status: 504 })
+    }
     console.error('[paypal create-order]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
