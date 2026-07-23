@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { execute } from '@/lib/db'
+import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
 
 const CREDIT_PACKAGES: Record<string, { tokens: number; price: string }> = {
@@ -23,18 +24,11 @@ export async function POST(req: NextRequest) {
     if (!pkgKey || !pkg) return NextResponse.json({ error: 'Invalid package' }, { status: 400 })
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://llmrpc.com'
-    const clientId = process.env.PAYPAL_CLIENT_ID
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET
-    const mode = process.env.PAYPAL_MODE || 'sandbox'
-
-    if (!clientId || !clientSecret) {
-      return NextResponse.json({ error: 'PayPal not configured' }, { status: 500 })
+    if (!isPayPalConfigured()) {
+      return NextResponse.json({ error: 'PayPal is temporarily unavailable' }, { status: 503 })
     }
 
-    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-    const endpoint = mode === 'live'
-      ? 'https://api-m.paypal.com/v2/checkout/orders'
-      : 'https://api-m.sandbox.paypal.com/v2/checkout/orders'
+    const { accessToken, baseUrl: paypalBaseUrl } = await getPayPalAccess()
 
     const payload = {
       intent: 'CAPTURE',
@@ -52,9 +46,9 @@ export async function POST(req: NextRequest) {
       },
     }
 
-    const ppRes = await fetch(endpoint, {
+    const ppRes = await fetch(`${paypalBaseUrl}/v2/checkout/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${authHeader}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(payload),
     })
 
