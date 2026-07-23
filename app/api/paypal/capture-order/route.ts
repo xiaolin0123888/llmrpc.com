@@ -3,8 +3,6 @@ import { auth } from '@/lib/auth'
 import { getOne, prisma } from '@/lib/db'
 import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
-import crypto from 'crypto'
-
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -22,7 +20,9 @@ export async function POST(req: NextRequest) {
 
     const { accessToken, baseUrl: paypalBaseUrl } = await getPayPalAccess()
 
-    const requestId = crypto.randomUUID()
+    // Stable idempotency key: same orderId always maps to same PayPal-Request-Id,
+    // so retries after network failures hit PayPal's idempotency cache.
+    const requestId = `capture-${orderId}`
 
     const ppRes = await fetch(`${paypalBaseUrl}/v2/checkout/orders/${orderId}/capture`, {
       method: 'POST',
