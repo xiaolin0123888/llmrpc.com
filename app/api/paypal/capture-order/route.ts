@@ -86,6 +86,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid capture response' }, { status: 502 })
     }
 
+    // Only credit when funds have actually settled.
+    // PENDING / DECLINED / FAILED must not add credits.
+    if (capture.status !== 'COMPLETED') {
+      return NextResponse.json({ error: `Payment not settled: ${capture.status}` }, { status: 400 })
+    }
+
     const capturedAmount = capture.amount?.value
     const capturedCurrency = capture.amount?.currency_code
     if (capturedCurrency !== 'USD' || capturedAmount !== expectedPrice) {
