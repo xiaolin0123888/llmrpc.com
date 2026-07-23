@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getOne, prisma } from '@/lib/db'
-import { getPayPalAccess, isPayPalConfigured } from '@/lib/paypal'
+import { getPayPalAccess, isPayPalConfigured, PayPalAuthError } from '@/lib/paypal'
 import { safeJson } from '@/lib/safe-json'
 
 const PAYPAL_TIMEOUT_MS = 30_000
@@ -143,6 +143,10 @@ export async function POST(req: NextRequest) {
     if (err?.name === 'AbortError') {
       console.error('[paypal capture-order] PayPal request timed out')
       return NextResponse.json({ error: 'PayPal request timed out' }, { status: 504 })
+    }
+    if (err instanceof PayPalAuthError) {
+      console.error('[paypal capture-order]', err.message)
+      return NextResponse.json({ error: 'PayPal service temporarily unavailable' }, { status: err.status })
     }
     console.error('[paypal capture-order]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
