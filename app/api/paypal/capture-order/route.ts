@@ -44,21 +44,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Order status: ${order.status}` }, { status: 400 })
     }
 
-    // Find pending transaction by orderId in metadata JSON
-    const pendingTx = await getOne(
+    // Find transaction by orderId (any status — may already be completed if previous capture
+    // succeeded but the response was lost)
+    const dbTx = await getOne(
       `SELECT * FROM transactions
-       WHERE user_id = $1 AND type = 'PURCHASE' AND metadata::jsonb->>'orderId' = $2 AND metadata::jsonb->>'status' = 'pending'
+       WHERE user_id = $1 AND type = 'PURCHASE' AND metadata::jsonb->>'orderId' = $2
        ORDER BY created_at DESC LIMIT 1`,
       [session.user.userId, orderId]
     )
 
-    if (!pendingTx) {
+    if (!dbTx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
     }
 
-    const meta = typeof pendingTx.metadata === 'string' ? JSON.parse(pendingTx.metadata) : pendingTx.metadata
+    const meta = typeof dbTx.metadata === 'string' ? JSON.parse(dbTx.metadata) : dbTx.metadata
+
+    // Already completed: return the existing credits so the client shows success
     if (meta?.status === 'completed') {
-      return NextResponse.json({ error: 'Already fulfilled' }, { status: 400 })
+      const user = await getOne(`SELECT credits FROM users WHERE id = $1`, [session.user.userId])
+      return NextResponse.json({ success: true, credits: user?.credits, tokens: meta.tokens })
     }
 
     const tokenAmount = Number(meta?.tokens)
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
          RETURNING id`,
         `Purchased ${tokenAmount.toLocaleString()} credits via PayPal`,
         JSON.stringify({ ...meta, tokens: tokenAmount, status: 'completed', paypalOrderId: order.id, capturedAt: new Date().toISOString() }),
-        pendingTx.id,
+        dbTx.id,
         session.user.userId
       )
 

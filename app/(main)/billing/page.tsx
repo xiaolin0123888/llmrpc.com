@@ -58,8 +58,9 @@ function BillingContent() {
       const orderId = sessionStorage.getItem('paypal_order_id')
       if (orderId) {
         capturePaypalOrder(orderId)
+      } else {
+        window.history.replaceState({}, '', '/billing')
       }
-      window.history.replaceState({}, '', '/billing')
     } else if (status === 'cancelled') {
       paypalHandledRef.current = true
       showNotification('error', 'PayPal payment was cancelled.')
@@ -91,6 +92,7 @@ function BillingContent() {
       showNotification('error', 'Network error during payment capture.')
     }
     setPaypalLoading(false)
+    window.history.replaceState({}, '', '/billing')
   }, [showNotification])
 
   const purchaseWithPayPal = useCallback(async (pkgKey: string) => {
