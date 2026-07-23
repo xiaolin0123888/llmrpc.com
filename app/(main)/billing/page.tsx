@@ -79,12 +79,14 @@ function BillingContent() {
       const data = await res.json()
       if (data.success) {
         sessionStorage.removeItem('paypal_order_id')
+        window.history.replaceState({}, '', '/billing')
         setCredits(data.credits)
         showNotification('success', `Successfully added ${Number(data.tokens).toLocaleString()} credits!`)
       } else {
         // If already fulfilled, clean up orderId so user doesn't keep retrying
         if (data.error === 'Already fulfilled') {
           sessionStorage.removeItem('paypal_order_id')
+          window.history.replaceState({}, '', '/billing')
         }
         showNotification('error', data.error || 'Payment capture failed.')
       }
@@ -92,7 +94,6 @@ function BillingContent() {
       showNotification('error', 'Network error during payment capture.')
     }
     setPaypalLoading(false)
-    window.history.replaceState({}, '', '/billing')
   }, [showNotification])
 
   const purchaseWithPayPal = useCallback(async (pkgKey: string) => {
