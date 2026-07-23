@@ -4,6 +4,15 @@ function getPayPalBaseUrl(): string {
     : 'https://api-m.sandbox.paypal.com'
 }
 
+export class PayPalAuthError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'PayPalAuthError'
+    this.status = status
+  }
+}
+
 export function isPayPalConfigured(): boolean {
   return Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET)
 }
@@ -35,7 +44,13 @@ export async function getPayPalAccess(): Promise<{ accessToken: string; baseUrl:
     clearTimeout(timeout)
   }
 
-  if (!response.ok) throw new Error(`PayPal authentication failed (${response.status})`)
+  if (!response.ok) {
+    const upstreamStatus = response.status
+    // 401/403 = misconfigured credentials → 502 (bad gateway, upstream rejected auth)
+    // 5xx = PayPal infra down → 503 (service unavailable)
+    const clientStatus = upstreamStatus === 401 || upstreamStatus === 403 ? 502 : 503
+    throw new PayPalAuthError(`PayPal authentication failed (${upstreamStatus})`, clientStatus)
+  }
 
   const data = await response.json() as { access_token?: string }
   if (!data.access_token) throw new Error('PayPal access token missing')
