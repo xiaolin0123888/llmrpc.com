@@ -57,7 +57,6 @@ function BillingContent() {
       paypalHandledRef.current = true
       const orderId = sessionStorage.getItem('paypal_order_id')
       if (orderId) {
-        sessionStorage.removeItem('paypal_order_id')
         capturePaypalOrder(orderId)
       }
       window.history.replaceState({}, '', '/billing')
@@ -78,9 +77,14 @@ function BillingContent() {
       })
       const data = await res.json()
       if (data.success) {
+        sessionStorage.removeItem('paypal_order_id')
         setCredits(data.credits)
         showNotification('success', `Successfully added ${Number(data.tokens).toLocaleString()} credits!`)
       } else {
+        // If already fulfilled, clean up orderId so user doesn't keep retrying
+        if (data.error === 'Already fulfilled') {
+          sessionStorage.removeItem('paypal_order_id')
+        }
         showNotification('error', data.error || 'Payment capture failed.')
       }
     } catch {
