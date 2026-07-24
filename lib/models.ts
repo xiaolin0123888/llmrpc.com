@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const siliconflow = axios.create({
+const siliconflow = axios.create({ timeout: 120_000,
   baseURL: process.env.SILICONFLOW_API_URL || 'https://api.siliconflow.cn/v1',
   headers: {
     'Authorization': `Bearer ${process.env.SILICONFLOW_API_KEY}`,
