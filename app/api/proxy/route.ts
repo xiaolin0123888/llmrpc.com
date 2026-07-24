@@ -46,9 +46,10 @@ export async function POST(req: NextRequest) {
 
     userId = keyRecord.user_id
 
+    // ── Rate limit by USER (not key) to prevent key-cycling bypass ──
     const rawPlanName = await getUserPlanName(userId)
     const planName = normalizePlanName(rawPlanName)
-    const rateCheck = checkRateLimit(hashedKey, planName)
+    const rateCheck = checkRateLimit(userId, planName)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Try again later.' },
@@ -76,6 +77,15 @@ export async function POST(req: NextRequest) {
 
     const siliconModel = MODEL_MAPPING[modelId]
 
+    // ── Enforce n=1 (single completion) to bound cost ──
+    const nChoice = typeof body.n === 'number' && body.n > 0 ? body.n : 1
+    if (nChoice !== 1) {
+      return NextResponse.json(
+        { error: 'n>1 is not supported. Make separate requests for multiple completions.' },
+        { status: 400 }
+      )
+    }
+
     const maxOutputTokens = Math.min(
       typeof body.max_tokens === 'number' && body.max_tokens > 0 ? body.max_tokens : MAX_TOKENS_CAP,
       MAX_TOKENS_CAP
@@ -92,8 +102,10 @@ export async function POST(req: NextRequest) {
       (JSON.stringify(messages).length / 4) * 1.5
     )
 
-    // Reserve input + max output + possible overage
-    const reserveTokens = estimatedInputTokens + maxOutputTokens
+    // Reserve: estimated input + max output + buffer + overage
+    // Buffer accounts for estimation error on input side
+    const inputBuffer = Math.ceil(estimatedInputTokens * 0.3)
+    const reserveTokens = estimatedInputTokens + inputBuffer + maxOutputTokens
 
     const usage = await checkUsage(userId, reserveTokens, keyRecord.credits)
 
@@ -126,7 +138,7 @@ export async function POST(req: NextRequest) {
       reservationMade = true
     }
 
-    // ── Call upstream; refund on failure ──
+    // ── Call upstream; full refund on failure ──
     let response: any
     try {
       const requestBody = { ...body, messages }
@@ -142,7 +154,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Model provider unavailable' }, { status: 502 })
     }
 
-    // ── Reconciliation: charge actual usage, refund unused ──
+    // ── Reconciliation ──
     let actualTokens = reserveTokens
     try {
       const u = response?.usage
@@ -157,11 +169,13 @@ export async function POST(req: NextRequest) {
 
     const diff = creditsReserved - actualTotalCharge
     if (diff > 0) {
+      // Refund unused
       await execute(
         `UPDATE users SET credits = credits + $1 WHERE id = $2`,
         [diff, userId]
       )
     } else if (diff < 0) {
+      // Actual exceeded reserve — charge extra. If user can't pay, refuse.
       const extraCharge = -diff
       const extraResult: any = await execute(
         `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
@@ -169,10 +183,21 @@ export async function POST(req: NextRequest) {
       )
       if (extraResult === 0) {
         console.error(
-          `[proxy] Overage shortfall: need ${extraCharge}, user ${userId}, model ${modelId}`
+          `[proxy] Overage charge failed: need ${extraCharge}, user ${userId}, model ${modelId}`
+        )
+        // Undo the earlier refund (if any) and return error.
+        // Since diff < 0, there was no refund above — but we reserved too little.
+        // We consumed creditsReserved (already deducted). Return error rather than
+        // giving free output.
+        return NextResponse.json(
+          { error: 'Usage exceeded reservation. Please retry with sufficient credits.' },
+          { status: 402 }
         )
       }
     }
+
+    // ── Clear reservation flag so outer catch does NOT re-refund ──
+    reservationMade = false
 
     await recordUsage(userId, actualTokens, actualOverageCost, actualOverage, modelId, 'API call: ' + modelId)
     await execute('UPDATE api_keys SET last_used = NOW() WHERE key_hash = $1', [hashedKey])
@@ -204,6 +229,7 @@ export async function POST(req: NextRequest) {
     return proxiedRes
   } catch (err) {
     console.error('[proxy error]', err)
+    // Only refund if we haven't already reconciled
     if (reservationMade && creditsReserved > 0 && userId) {
       try {
         await execute(

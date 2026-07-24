@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getAll, execute, getOne } from '@/lib/db'
+import { getAll, execute, getOne, prisma } from '@/lib/db'
 import crypto from 'crypto'
 import { safeJson } from '@/lib/safe-json'
 
@@ -23,39 +23,54 @@ export async function POST(req: NextRequest) {
     const [body, parseError] = await safeJson<{ name?: string }>(req)
     if (parseError) return parseError
 
-    // Check ban
-    const user = await getOne('SELECT is_banned FROM users WHERE id = $1', [session.user.userId])
-    if (user?.is_banned) {
-      return NextResponse.json({ error: 'Account suspended' }, { status: 403 })
-    }
-
-    // Limit keys per user
-    const keyCount: any = await getOne(
-      'SELECT COUNT(*)::int as cnt FROM api_keys WHERE user_id = $1',
-      [session.user.userId]
-    )
-    if (keyCount?.cnt >= MAX_KEYS_PER_USER) {
-      return NextResponse.json(
-        { error: `Maximum ${MAX_KEYS_PER_USER} API keys per account` },
-        { status: 400 }
-      )
-    }
-
     const name = body?.name?.trim()
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
+
     const keyFull = 'sk-llm-' + crypto.randomBytes(24).toString('hex')
     const keyHash = crypto.createHash('sha256').update(keyFull).digest('hex')
     const prefix = keyFull.slice(0, 12)
-    await execute(
-      'INSERT INTO api_keys (user_id, name, key_hash, prefix) VALUES ($1, $2, $3, $4)',
-      [session.user.userId, name, keyHash, prefix]
-    )
-    await execute(
-      'INSERT INTO api_key_secrets (key_hash, encrypted_key) VALUES ($1, $2)',
-      [keyHash, encryptKey(keyFull)]
-    )
-    const key = await getOne('SELECT id FROM api_keys WHERE key_hash = $1', [keyHash])
-    return NextResponse.json({ key_id: key.id, key: keyFull, prefix })
+    const encryptedKey = encryptKey(keyFull)
+
+    // Count + insert in a transaction to prevent concurrent key-creation bypass
+    const created = await prisma.$transaction(async (tx) => {
+      // Check ban inside transaction
+      const userRows: any[] = await tx.$queryRawUnsafe(
+        'SELECT is_banned FROM users WHERE id = $1 FOR UPDATE',
+        session.user.userId
+      )
+      if (!userRows.length || userRows[0].is_banned) return { error: 'Account suspended', status: 403 }
+
+      // Count existing keys (locked via FOR UPDATE on users row won't block key inserts,
+      // so we also do a count under the transaction's snapshot)
+      const countRows: any[] = await tx.$queryRawUnsafe(
+        'SELECT COUNT(*)::int as cnt FROM api_keys WHERE user_id = $1',
+        session.user.userId
+      )
+      if (countRows[0]?.cnt >= MAX_KEYS_PER_USER) {
+        return { error: `Maximum ${MAX_KEYS_PER_USER} API keys per account`, status: 400 }
+      }
+
+      await tx.$executeRawUnsafe(
+        'INSERT INTO api_keys (user_id, name, key_hash, prefix) VALUES ($1, $2, $3, $4)',
+        session.user.userId, name, keyHash, prefix
+      )
+      await tx.$executeRawUnsafe(
+        'INSERT INTO api_key_secrets (key_hash, encrypted_key) VALUES ($1, $2)',
+        keyHash, encryptedKey
+      )
+
+      const keyRows: any[] = await tx.$queryRawUnsafe(
+        'SELECT id FROM api_keys WHERE key_hash = $1',
+        keyHash
+      )
+      return { id: keyRows[0]?.id, key: keyFull, prefix }
+    })
+
+    if ('error' in created) {
+      return NextResponse.json({ error: created.error }, { status: created.status })
+    }
+
+    return NextResponse.json({ key_id: created.id, key: created.key, prefix })
   } catch (err) {
     console.error('[keys POST error]', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
