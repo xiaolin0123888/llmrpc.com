@@ -4,10 +4,15 @@ import { getAll, execute, getOne } from '@/lib/db'
 import crypto from 'crypto'
 import { safeJson } from '@/lib/safe-json'
 
+const MAX_KEYS_PER_USER = 10
+
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const keys = await getAll('SELECT id, name, prefix, last_used, created_at FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC', [session.user.userId])
+  const keys = await getAll(
+    'SELECT id, name, prefix, last_used, created_at FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC',
+    [session.user.userId]
+  )
   return NextResponse.json({ keys })
 }
 
@@ -17,6 +22,24 @@ export async function POST(req: NextRequest) {
   try {
     const [body, parseError] = await safeJson<{ name?: string }>(req)
     if (parseError) return parseError
+
+    // Check ban
+    const user = await getOne('SELECT is_banned FROM users WHERE id = $1', [session.user.userId])
+    if (user?.is_banned) {
+      return NextResponse.json({ error: 'Account suspended' }, { status: 403 })
+    }
+
+    // Limit keys per user
+    const keyCount: any = await getOne(
+      'SELECT COUNT(*)::int as cnt FROM api_keys WHERE user_id = $1',
+      [session.user.userId]
+    )
+    if (keyCount?.cnt >= MAX_KEYS_PER_USER) {
+      return NextResponse.json(
+        { error: `Maximum ${MAX_KEYS_PER_USER} API keys per account` },
+        { status: 400 }
+      )
+    }
 
     const name = body?.name?.trim()
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })

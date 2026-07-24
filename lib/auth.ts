@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import jwt, { type JwtPayload } from 'jsonwebtoken'
+import { getOne } from '@/lib/db'
 
 function getJwtSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET
@@ -68,5 +69,14 @@ export async function auth(): Promise<AuthSession | null> {
   if (!token) return null
 
   const user = verifyToken(token)
-  return user ? { user } : null
+  if (!user) return null
+
+  // Check if user is banned (invalidates existing sessions)
+  const dbUser = await getOne(
+    'SELECT is_banned FROM users WHERE id = $1',
+    [user.userId]
+  )
+  if (!dbUser || dbUser.is_banned) return null
+
+  return { user }
 }
