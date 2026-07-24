@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Verify the captured amount matches the expected purchase ──
-    if (expectedPrice && capturedAmount !== expectedPrice) {
+    if (!expectedPrice || capturedAmount !== expectedPrice) {
       console.error(
         `[paypal webhook] Amount mismatch: expected ${expectedPrice} USD, got ${capturedAmount} USD`
       )
