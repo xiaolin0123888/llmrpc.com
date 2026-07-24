@@ -16,13 +16,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
     }
 
-    const user = await getOne('SELECT id, email, name, password FROM users WHERE email = $1', [email])
+    const user = await getOne(
+      'SELECT id, email, name, password, is_banned FROM users WHERE email = $1',
+      [email]
+    )
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
     if (!user.password) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
+    // ── Banned user check ──
+    if (user.is_banned) {
+      return NextResponse.json({ error: 'Account suspended' }, { status: 403 })
     }
 
     let valid = false
