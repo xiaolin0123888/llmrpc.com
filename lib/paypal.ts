@@ -64,7 +64,11 @@ export async function getPayPalAccess(): Promise<{ accessToken: string; baseUrl:
 
 /**
  * Verify PayPal webhook signature.
- * Per PayPal docs: POST /v1/notifications/verify-webhook-signature
+ *
+ * IMPORTANT: PayPal requires the webhook_event field to contain the exact
+ * original bytes received.  We embed rawBody as-is into the verification
+ * request JSON so that no parse→re-serialise round-trip can alter key
+ * ordering or whitespace (which would break the signature check).
  */
 export async function verifyPaypalWebhookSignature(
   rawBody: string,
@@ -85,15 +89,18 @@ export async function verifyPaypalWebhookSignature(
   try {
     const { accessToken, baseUrl } = await getPayPalAccess()
 
-    const verifyBody = JSON.stringify({
+    // Build verify body: use JSON.stringify for the envelope fields, then
+    // inject rawBody directly as the webhook_event so it stays byte-identical.
+    const envelope = JSON.stringify({
       auth_algo: headers["paypal-auth-algo"] || "",
       cert_url: headers["paypal-cert-url"] || "",
       transmission_id: headers["paypal-transmission-id"] || "",
       transmission_sig: headers["paypal-transmission-sig"] || "",
       transmission_time: headers["paypal-transmission-time"] || "",
       webhook_id: webhookId,
-      webhook_event: JSON.parse(rawBody),
     })
+    // Slice off closing } and splice in webhook_event with raw bytes
+    const verifyBody = envelope.slice(0, -1) + `,"webhook_event":${rawBody}}`
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15_000)
