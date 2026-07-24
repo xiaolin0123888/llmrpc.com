@@ -7,14 +7,26 @@ export async function POST(req: Request) {
     const [body, parseError] = await safeJson<{ email?: string; password?: string }>(req)
     if (parseError) return parseError
 
+    const adminPassword = process.env.ADMIN_PASSWORD
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@llmrpc.com'
+
+    // ── Guard: both email and password must be non-empty ──
     const email = body?.email?.trim()
     const password = body?.password
-    
-    if (password !== process.env.ADMIN_PASSWORD) {
+
+    if (!email || !password) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@llmrpc.com'
+    // ── Guard: ADMIN_PASSWORD must be configured (reject empty/undefined) ──
+    if (!adminPassword) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    }
+
+    if (password !== adminPassword) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
     if (email !== adminEmail) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
@@ -23,7 +35,6 @@ export async function POST(req: Request) {
 
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
-    // Build cookie string without template literal to avoid escaping issues
     const cookieValue = [
       'admin_token=' + encodeURIComponent(token),
       'Path=/',
