@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getOne, prisma } from "@/lib/db"
-import { getPayPalAccess, verifyPaypalWebhookSignature } from "@/lib/paypal"
-import { safeJson } from "@/lib/safe-json"
+import { verifyPaypalWebhookSignature } from "@/lib/paypal"
 
 interface PayPalWebhookEvent {
   id?: string
@@ -11,20 +10,14 @@ interface PayPalWebhookEvent {
     status?: string
     amount?: { value?: string; currency_code?: string }
     custom_id?: string
-    purchase_units?: Array<{
-      payments?: {
-        captures?: Array<{
-          id?: string
-          status?: string
-          amount?: { value?: string; currency_code?: string }
-          custom_id?: string
-        }>
+    supplementary_data?: {
+      related_ids?: {
+        order_id?: string
       }
-    }>
+    }
   }
 }
 
-// PayPal sends CHECKOUT.ORDER.APPROVED then PAYMENT.CAPTURE.COMPLETED
 // We only credit on PAYMENT.CAPTURE.COMPLETED (funds confirmed settled).
 const CREDIT_EVENT_TYPES = ["PAYMENT.CAPTURE.COMPLETED"]
 
@@ -90,7 +83,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // ── Extract order/capture details ──
     const resource = body.resource
     if (!resource) {
       console.error("[paypal webhook] Missing resource in event body")
@@ -113,122 +105,98 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true, processed: false, reason: `capture_status_${captureStatus}` })
     }
 
-    // ── Find matching local transaction by capture ID ──
-    // Strategy 1: Look up by captureId in metadata (covers client-side capture + retries)
-    let userId: string | null = null
-    let expectedTokens: number | null = null
-    let expectedPrice: string | null = null
-    let orderId: string | null = null
-
-    const dbTx = await getOne(
-      `SELECT * FROM transactions
-       WHERE type = 'PURCHASE'
-         AND metadata::jsonb->>'paypalCaptureId' = $1
-       ORDER BY created_at DESC LIMIT 1`,
-      [captureId]
-    )
-
-    if (dbTx) {
-      const meta = typeof dbTx.metadata === "string" ? JSON.parse(dbTx.metadata) : dbTx.metadata
-      // Already credited — nothing to do
-      if (meta?.status === "completed") {
-        console.log(`[paypal webhook] Capture ${captureId} already credited, skipping`)
-        return NextResponse.json({ received: true, processed: false, reason: "already_credited" })
-      }
-      userId = dbTx.user_id
-      expectedTokens = meta?.tokens
-      expectedPrice = meta?.price
-      orderId = meta?.orderId
-    }
-
-    // Strategy 2: Try custom_id from the capture (set during order creation)
-    if (!userId && resource.custom_id) {
-      try {
-        const custom = JSON.parse(resource.custom_id)
-        userId = custom.userId || null
-        expectedTokens = custom.tokens || null
-        if (userId) {
-          // Find the latest pending transaction for this user
-          const pendingTx = await getOne(
-            `SELECT * FROM transactions
-             WHERE user_id = $1
-               AND type = 'PURCHASE'
-               AND metadata::jsonb->>'status' = 'pending'
-             ORDER BY created_at DESC LIMIT 1`,
-            [userId]
-          )
-          if (pendingTx) {
-            const meta = typeof pendingTx.metadata === "string" ? JSON.parse(pendingTx.metadata) : dbTx.metadata
-            expectedTokens = meta?.tokens || custom.tokens
-            expectedPrice = meta?.price
-            orderId = meta?.orderId
-          }
-        }
-      } catch {
-        // custom_id may not be JSON
-      }
-    }
-
-    if (!userId) {
-      console.error("[paypal webhook] Could not determine user for capture", captureId)
-      return NextResponse.json({ error: "User not found for capture" }, { status: 404 })
-    }
-
-    // ── Validate amount ──
-    const tokenAmount = expectedTokens ? Number(expectedTokens) : null
-    if (!tokenAmount || !Number.isSafeInteger(tokenAmount) || tokenAmount <= 0 || tokenAmount > 10_000_000) {
-      console.error("[paypal webhook] Invalid token amount", expectedTokens)
-      return NextResponse.json({ error: "Invalid token amount" }, { status: 400 })
-    }
-
     if (capturedCurrency !== "USD") {
       console.error(`[paypal webhook] Unexpected currency: ${capturedCurrency}`)
       return NextResponse.json({ error: "Unsupported currency" }, { status: 400 })
     }
 
+    // ── Resolve the exact PayPal order ID ──
+    // PayPal provides it at resource.supplementary_data.related_ids.order_id
+    const paypalOrderId: string | null =
+      resource.supplementary_data?.related_ids?.order_id || null
+
+    // ── Find matching local transaction ──
+    // Strategy 1: match by exact PayPal orderId (most reliable)
+    // Strategy 2: match by captureId (covers client-side captured transactions)
+    let localTx: any = null
+
+    if (paypalOrderId) {
+      localTx = await getOne(
+        `SELECT * FROM transactions
+         WHERE type = 'PURCHASE'
+           AND metadata::jsonb->>'orderId' = $1
+         ORDER BY created_at DESC LIMIT 1`,
+        [paypalOrderId]
+      )
+    }
+
+    if (!localTx) {
+      localTx = await getOne(
+        `SELECT * FROM transactions
+         WHERE type = 'PURCHASE'
+           AND metadata::jsonb->>'paypalCaptureId' = $1
+         ORDER BY created_at DESC LIMIT 1`,
+        [captureId]
+      )
+    }
+
+    if (!localTx) {
+      console.error("[paypal webhook] No local transaction found for order", paypalOrderId, "capture", captureId)
+      return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
+    }
+
+    const meta =
+      typeof localTx.metadata === "string"
+        ? JSON.parse(localTx.metadata)
+        : localTx.metadata
+
+    // Already credited — idempotent, nothing to do
+    if (meta?.status === "completed") {
+      console.log(`[paypal webhook] Order ${paypalOrderId} already credited, skipping`)
+      return NextResponse.json({ received: true, processed: false, reason: "already_credited" })
+    }
+
+    const userId: string = localTx.user_id
+    const tokenAmount = Number(meta?.tokens)
+    const expectedPrice = meta?.price
+
+    if (!Number.isSafeInteger(tokenAmount) || tokenAmount <= 0 || tokenAmount > 10_000_000) {
+      console.error("[paypal webhook] Invalid token amount in local tx", meta?.tokens)
+      return NextResponse.json({ error: "Invalid token amount" }, { status: 400 })
+    }
+
+    // ── Verify the captured amount matches the expected purchase ──
+    if (expectedPrice && capturedAmount !== expectedPrice) {
+      console.error(
+        `[paypal webhook] Amount mismatch: expected ${expectedPrice} USD, got ${capturedAmount} USD`
+      )
+      return NextResponse.json({ error: "Payment amount mismatch" }, { status: 400 })
+    }
+
     // ── Credit user and mark transaction completed ──
     const credited = await prisma.$transaction(async (tx) => {
-      // Find and update the pending transaction
       const txRows: any[] = await tx.$queryRawUnsafe(
         `UPDATE transactions
          SET description = $1, metadata = $2::jsonb
-         WHERE user_id = $3
-           AND type = 'PURCHASE'
+         WHERE id = $3
+           AND user_id = $4
            AND metadata::jsonb->>'status' = 'pending'
-           AND (
-             metadata::jsonb->>'orderId' = $4
-             OR metadata::jsonb->>'paypalCaptureId' = $5
-           )
-           AND id = (
-             SELECT id FROM transactions
-             WHERE user_id = $3
-               AND type = 'PURCHASE'
-               AND metadata::jsonb->>'status' = 'pending'
-               AND (
-                 metadata::jsonb->>'orderId' = $4
-                 OR metadata::jsonb->>'paypalCaptureId' = $5
-               )
-             ORDER BY created_at DESC LIMIT 1
-           )
          RETURNING id`,
         `Purchased ${tokenAmount.toLocaleString()} credits via PayPal (webhook)`,
         JSON.stringify({
-          provider: "paypal",
-          orderId: orderId || "unknown",
-          tokens: tokenAmount,
+          ...meta,
           status: "completed",
           paypalCaptureId: captureId,
+          paypalOrderId: paypalOrderId || meta?.orderId,
           capturedAt: new Date().toISOString(),
           creditedVia: "webhook",
-          price: expectedPrice || capturedAmount,
         }),
-        userId,
-        orderId || "",
-        captureId
+        localTx.id,
+        userId
       )
 
       if (!txRows.length) {
-        console.log(`[paypal webhook] No pending transaction found for user ${userId}, capture ${captureId}`)
+        console.log(`[paypal webhook] Tx ${localTx.id} no longer pending, skipping`)
         return null
       }
 
@@ -242,7 +210,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (!credited) {
-      return NextResponse.json({ received: true, processed: false, reason: "no_pending_transaction" })
+      return NextResponse.json({ received: true, processed: false, reason: "already_fulfilled" })
     }
 
     console.log(`[paypal webhook] Credited ${tokenAmount} tokens to user ${userId} via webhook`)
