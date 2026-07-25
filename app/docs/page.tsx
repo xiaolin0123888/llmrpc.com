@@ -33,7 +33,7 @@ const CURL = `curl https://llmrpc.com/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer $LLMRPC_API_KEY" \\
   -d '{
-    "model": "vertex-flash",
+    "model": "deepseek-v4-flash",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'`
 
@@ -45,7 +45,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="vertex-flash",
+    model="deepseek-v4-flash",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 
@@ -59,18 +59,18 @@ const client = new OpenAI({
 })
 
 const response = await client.chat.completions.create({
-  model: 'vertex-flash',
+  model: 'deepseek-v4-flash',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
 console.log(response.choices[0].message.content)`
 
 const MODELS_LIST = `# Available models — one endpoint, switch by name
-vertex-pro       # DeepSeek V4 Pro — flagship, best all-around
-vertex-reason    # DeepSeek V4 Pro — deep reasoning mode
-vertex-flash     # DeepSeek V4 Flash — fast, affordable ($0.20/1M input)
-vertex-plus      # GLM-5.1 — strong mid-tier
-vertex-chat      # GLM-5.2 — budget-friendly
+deepseek-v4-pro   # DeepSeek V4 Pro — flagship, best all-around
+deepseek-v4-reason # DeepSeek V4 Pro — deep reasoning mode
+deepseek-v4-flash  # DeepSeek V4 Flash — fast, affordable ($0.20/1M input)
+glm-5.1           # GLM-5.1 — strong mid-tier
+glm-5.2           # GLM-5.2 — budget-friendly
 deepseek-chat    # DeepSeek V4 Flash — general purpose
 qwen-turbo       # GLM-5.2 — quick, efficient
 

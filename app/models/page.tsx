@@ -2,11 +2,11 @@ import Link from 'next/link'
 import { MODEL_PRICING } from '@/lib/models-config'
 
 const MODELS = [
-  { id: 'vertex-pro', name: 'Vertex Pro', upstream: 'DeepSeek V4 Pro', desc: 'Flagship performance. Best all-around for complex tasks, coding, analysis.', tier: 'Pro' },
-  { id: 'vertex-reason', name: 'Vertex Reason', upstream: 'DeepSeek V4 Pro', desc: 'Deep reasoning mode. Step-by-step thinking for math, logic, planning.', tier: 'Enterprise' },
-  { id: 'vertex-flash', name: 'Vertex Flash', upstream: 'DeepSeek V4 Flash', desc: 'Fast and affordable. Perfect for high-volume, low-latency applications.', tier: 'Free' },
-  { id: 'vertex-plus', name: 'Vertex Plus', upstream: 'GLM-5.1', desc: 'Strong mid-tier model. Balanced speed, quality, and cost.', tier: 'Basic' },
-  { id: 'vertex-chat', name: 'Vertex Chat', upstream: 'GLM-5.2', desc: 'Budget-friendly workhorse. Great for simple chats and prototyping.', tier: 'Free' },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', upstream: 'DeepSeek V4 Pro', desc: 'Flagship performance. Best all-around for complex tasks, coding, analysis.', tier: 'Pro' },
+  { id: 'deepseek-v4-reason', name: 'DeepSeek V4 Reason', upstream: 'DeepSeek V4 Pro', desc: 'Deep reasoning mode. Step-by-step thinking for math, logic, planning.', tier: 'Enterprise' },
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', upstream: 'DeepSeek V4 Flash', desc: 'Fast and affordable. Perfect for high-volume, low-latency applications.', tier: 'Free' },
+  { id: 'glm-5.1', name: 'GLM-5.1', upstream: 'GLM-5.1', desc: 'Strong mid-tier model. Balanced speed, quality, and cost.', tier: 'Basic' },
+  { id: 'glm-5.2', name: 'GLM-5.2', upstream: 'GLM-5.2', desc: 'Budget-friendly workhorse. Great for simple chats and prototyping.', tier: 'Free' },
   { id: 'deepseek-chat', name: 'DeepSeek Chat', upstream: 'DeepSeek V4 Flash', desc: 'General-purpose chat. Fast, reliable, cost-efficient.', tier: 'Free' },
   { id: 'qwen-turbo', name: 'Qwen Turbo', upstream: 'GLM-5.2', desc: 'Quick, efficient responses. Great for lightweight tasks.', tier: 'Free' },
 ]

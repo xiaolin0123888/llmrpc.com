@@ -2,11 +2,11 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 
 const MODELS = [
-  { id: 'vertex-pro', name: 'Vertex Pro', upstream: 'DeepSeek V4 Pro', color: '#7c3aed', bg: '#f5f3ff' },
-  { id: 'vertex-reason', name: 'Vertex Reason', upstream: 'DeepSeek V4 Pro', color: '#7c3aed', bg: '#f5f3ff' },
-  { id: 'vertex-flash', name: 'Vertex Flash', upstream: 'DeepSeek V4 Flash', color: '#2563eb', bg: '#eff6ff' },
-  { id: 'vertex-plus', name: 'Vertex Plus', upstream: 'GLM-5.1', color: '#059669', bg: '#ecfdf5' },
-  { id: 'vertex-chat', name: 'Vertex Chat', upstream: 'GLM-5.2', color: '#0891b2', bg: '#ecfeff' },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', upstream: 'DeepSeek V4 Pro', color: '#7c3aed', bg: '#f5f3ff' },
+  { id: 'deepseek-v4-reason', name: 'DeepSeek V4 Reason', upstream: 'DeepSeek V4 Pro', color: '#7c3aed', bg: '#f5f3ff' },
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', upstream: 'DeepSeek V4 Flash', color: '#2563eb', bg: '#eff6ff' },
+  { id: 'glm-5.1', name: 'GLM-5.1', upstream: 'GLM-5.1', color: '#059669', bg: '#ecfdf5' },
+  { id: 'glm-5.2', name: 'GLM-5.2', upstream: 'GLM-5.2', color: '#0891b2', bg: '#ecfeff' },
   { id: 'deepseek-chat', name: 'DeepSeek Chat', upstream: 'DeepSeek V4 Flash', color: '#231f20', bg: '#f9f9f9' },
   { id: 'qwen-turbo', name: 'Qwen Turbo', upstream: 'GLM-5.2', color: '#e05400', bg: '#fff7ed' },
 ]
@@ -64,12 +64,12 @@ export default async function HomePage() {
     -H "Authorization: Bearer sk-..." \\
     -H "Content-Type: application/json" \\
     -d '{
-      "model": "vertex-pro",
+      "model": "deepseek-v4-pro",
       "messages": [{"role": "user", "content": "Hello!"}]
     }'
 
 $ # Switch models instantly — just change the name
-$ # vertex-pro, vertex-flash, vertex-reason, vertex-plus, vertex-chat, deepseek-chat, qwen-turbo`}
+$ # deepseek-v4-pro, deepseek-v4-flash, deepseek-v4-reason, glm-5.1, glm-5.2, deepseek-chat, qwen-turbo`}
             </pre>
           </div>
         </section>
