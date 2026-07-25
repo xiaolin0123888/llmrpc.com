@@ -81,6 +81,7 @@ const plans = [
   { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '5 models', color: '#2563eb' },
   { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '6 models', color: '#7c3aed' },
   { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: '7 models', color: '#059669' },
+  { name: "Scale", price: "$149", quota: "200M tokens/mo", models: "All models", color: "#d97706" },
   { name: "500M", price: "$199", quota: "500M tokens/mo", models: "All models", color: "#dc2626" },
 ]
 

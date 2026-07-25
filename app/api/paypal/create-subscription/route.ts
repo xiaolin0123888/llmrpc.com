@@ -10,6 +10,7 @@ const PLAN_PRICING: Record<string, { planId: string | undefined; price: string; 
   basic:      { planId: process.env.PAYPAL_PLAN_BASIC,      price: "9.99",  quota: "500K tokens/mo",  name: "Basic" },
   pro:        { planId: process.env.PAYPAL_PLAN_PRO,        price: "49.00", quota: "20M tokens/mo",   name: "Pro" },
   enterprise: { planId: process.env.PAYPAL_PLAN_ENTERPRISE, price: "99.00", quota: "50M tokens/mo",   name: "Enterprise" },
+  scale:      { planId: process.env.PAYPAL_PLAN_SCALE,      price: "149.00",quota: "200M tokens/mo", name: "Scale" },
   unlimited:  { planId: process.env.PAYPAL_PLAN_UNLIMITED,  price: "199.00",quota: "500M tokens/mo", name: "500M" },
 }
 
