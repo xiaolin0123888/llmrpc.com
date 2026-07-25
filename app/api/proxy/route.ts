@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const overageTokens = Math.max(0, usage.usedTokens + reserveTokens - usage.quotaTokens)
+    const overageTokens = Math.max(0, usage.usedTokens + reserveTokens - usage.quotaTokens) - Math.max(0, usage.usedTokens - usage.quotaTokens)
     const overageCost = (overageTokens / 1000) * usage.overageRate
     const totalReserve = reserveTokens + Math.round(overageCost * 1000)
 
@@ -245,7 +245,7 @@ export async function POST(req: NextRequest) {
 
     if (actualTokens <= 0) actualTokens = reserveTokens
 
-    const actualOverage = Math.max(0, usage.usedTokens + actualTokens - usage.quotaTokens)
+    const actualOverage = Math.max(0, usage.usedTokens + actualTokens - usage.quotaTokens) - Math.max(0, usage.usedTokens - usage.quotaTokens)
     const actualOverageCost = (actualOverage / 1000) * usage.overageRate
     const actualTotalCharge = actualTokens + Math.round(actualOverageCost * 1000)
 

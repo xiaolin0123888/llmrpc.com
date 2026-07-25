@@ -26,7 +26,9 @@ export async function getBillingPeriodStart(userId: string): Promise<Date> {
 }
 
 /**
- * Sum total API_USAGE tokens for a user since their billing period start.
+ * Sum base API_USAGE tokens for a user since their billing period start,
+ * EXCLUDING overage charges which are stored as separate transactions.
+ * Overage is tracked independently; including it would double-count costs.
  */
 export async function getCurrentPeriodUsage(userId: string): Promise<number> {
   const periodStart = await renewPeriodIfNeeded(userId)
@@ -34,7 +36,8 @@ export async function getCurrentPeriodUsage(userId: string): Promise<number> {
   const result: any = await getOne(
     `SELECT COALESCE(SUM(-amount), 0)::int as total ` +
     `FROM transactions ` +
-    `WHERE user_id = $1 AND type = 'API_USAGE' AND created_at >= $2`,
+    `WHERE user_id = $1 AND type = 'API_USAGE' AND created_at >= $2 ` +
+    `AND (metadata->>'overage' IS NULL OR NOT (metadata->>'overage')::boolean)`,
     [userId, periodStart]
   )
 
@@ -57,15 +60,19 @@ export async function getUserPlanName(userId: string): Promise<string> {
  *
  * Returns an UsageResult with:
  * - allowedTokens: tokens the request is permitted to consume
- * - overageCost: USD cost if request exceeds quota (deducted from credits)
+ * - overageCost: USD cost of the NEW overage incurred by this request
  * - isOverQuota: whether user is already over their monthly quota
+ * - excessTokens: new tokens exceeding quota (incremental, not cumulative)
  *
- * Core logic:
+ * Core logic (incremental overage):
+ * - Overage is calculated only on the portion that crosses the quota line.
+ *   If already over quota, only the new request is charged, not the total.
  * - If used + requested <= quota: normal request, no overage
  * - If used < quota but used + requested > quota:
- *     partial overage = (used + requested - quota)
- *     overageCost = partial overage / 1000 * overageRate
- * - If already over quota AND not enough credits to cover overage: reject
+ *     newOverage = (used + requested - quota)
+ *     overageCost = newOverage / 1000 * overageRate
+ * - If already over quota:
+ *     newOverage = requestedTokens (entire request is overage)
  * - Unlimited plan: no quota check, no overage
  */
 export async function checkUsage(
@@ -86,23 +93,23 @@ export async function checkUsage(
     }
   }
 
-  const totalUsed = usedTokens + requestedTokens
   const isOverQuota = usedTokens >= quota
-  const excessTokens = Math.max(0, totalUsed - quota)
-  const overageCost = (excessTokens / 1000) * overageRate
+  // Incremental overage: only the portion of this request that exceeds quota
+  const newOverage = Math.max(0, usedTokens + requestedTokens - quota) - Math.max(0, usedTokens - quota)
+  const overageCost = (newOverage / 1000) * overageRate
 
-  // If already over quota, need credits to cover the overage cost
+  // If already over quota and not enough credits to cover this request's overage
   if (isOverQuota && overageCost > userCredits) {
     return {
       usedTokens, quotaTokens: quota, overageRate,
-      isOverQuota: true, excessTokens, overageCost,
+      isOverQuota: true, excessTokens: newOverage, overageCost,
       allowedTokens: 0,
     }
   }
 
   return {
     usedTokens, quotaTokens: quota, overageRate,
-    isOverQuota, excessTokens, overageCost,
+    isOverQuota, excessTokens: newOverage, overageCost,
     allowedTokens: requestedTokens,
   }
 }
