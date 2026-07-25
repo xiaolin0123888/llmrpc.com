@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { getOne, execute, prisma } from '@/lib/db'
 import { proxyRequest } from '@/lib/models'
-import { checkUsage, getUserPlanName } from '@/lib/usage'
+import { checkUsage, getUserPlanName, getBillingPeriodStart, getCurrentPeriodUsageTx } from '@/lib/usage'
 import { MODEL_MAPPING, PLAN_ACCESS, styleModelFilter, injectPersona } from '@/lib/models-config'
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate_limit'
 import crypto from 'crypto'
@@ -204,21 +204,36 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const overageTokens = Math.max(0, usage.usedTokens + reserveTokens - usage.quotaTokens) - Math.max(0, usage.usedTokens - usage.quotaTokens)
-    const overageCost = (overageTokens / 1000) * usage.overageRate
-    const totalReserve = reserveTokens + Math.round(overageCost * 1000)
+    // Serialize per-user to prevent concurrent requests from undercounting overage.
+    // pg_advisory_xact_lock releases automatically when the transaction commits.
+    let lockedUsedTokens = usage.usedTokens // fallback; updated under advisory lock
+    const periodStart = await getBillingPeriodStart(userId)
+    const reservation = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, [userId])
 
-    if (totalReserve > 0) {
-      const deductResult: any = await execute(
-        `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
-        [totalReserve, userId]
-      )
-      if (deductResult === 0) {
-        return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
+      const freshUsed = await getCurrentPeriodUsageTx(tx, userId, periodStart)
+
+      const lockedOverage = Math.max(0, freshUsed + reserveTokens - usage.quotaTokens) - Math.max(0, freshUsed - usage.quotaTokens)
+      const lockedOverageCost = (lockedOverage / 1000) * usage.overageRate
+      const lockedTotalReserve = reserveTokens + Math.round(lockedOverageCost * 1000)
+
+      if (lockedTotalReserve <= 0) {
+        return { success: true, totalReserve: 0, usedTokens: freshUsed }
       }
-      creditsReserved = totalReserve
-      reservationMade = true
+
+      const deductResult: any = await tx.$executeRawUnsafe(
+        `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
+        lockedTotalReserve, userId
+      )
+      return { success: deductResult > 0, totalReserve: lockedTotalReserve, usedTokens: freshUsed }
+    })
+
+    if (!reservation.success) {
+      return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
     }
+    creditsReserved = reservation.totalReserve
+    lockedUsedTokens = reservation.usedTokens ?? usage.usedTokens
+    if (creditsReserved > 0) reservationMade = true
 
     // ── Call upstream; full refund on failure ──
     let response: any
@@ -245,7 +260,7 @@ export async function POST(req: NextRequest) {
 
     if (actualTokens <= 0) actualTokens = reserveTokens
 
-    const actualOverage = Math.max(0, usage.usedTokens + actualTokens - usage.quotaTokens) - Math.max(0, usage.usedTokens - usage.quotaTokens)
+    const actualOverage = Math.max(0, lockedUsedTokens + actualTokens - usage.quotaTokens) - Math.max(0, lockedUsedTokens - usage.quotaTokens)
     const actualOverageCost = (actualOverage / 1000) * usage.overageRate
     const actualTotalCharge = actualTokens + Math.round(actualOverageCost * 1000)
 

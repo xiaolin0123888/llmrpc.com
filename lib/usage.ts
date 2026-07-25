@@ -3,7 +3,8 @@
  * checks against plan quota, and computes overage charges.
  */
 
-import { getOne, execute } from '@/lib/db'
+import { getOne, execute, prisma } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 import { renewPeriodIfNeeded } from '@/lib/period'
 import { getPlanQuotaAndOverage } from '@/lib/plans'
 
@@ -42,6 +43,26 @@ export async function getCurrentPeriodUsage(userId: string): Promise<number> {
   )
 
   const total = Number(result?.total ?? 0); return isNaN(total) ? 0 : total
+}
+
+/**
+ * Same as getCurrentPeriodUsage but runs inside an existing Prisma transaction (tx).
+ * Does NOT call renewPeriodIfNeeded — the caller must supply a pre-renewed periodStart.
+ */
+export async function getCurrentPeriodUsageTx(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  periodStart: Date
+): Promise<number> {
+  const rows: any = await tx.$queryRawUnsafe(
+    `SELECT COALESCE(SUM(-amount), 0)::int as total ` +
+    `FROM transactions ` +
+    `WHERE user_id = $1 AND type = 'API_USAGE' AND created_at >= $2 ` +
+    `AND (metadata->>'overage' IS NULL OR NOT (metadata->>'overage')::boolean)`,
+    userId, periodStart
+  )
+  const total = Number(rows?.[0]?.total ?? 0)
+  return isNaN(total) ? 0 : total
 }
 
 /**
