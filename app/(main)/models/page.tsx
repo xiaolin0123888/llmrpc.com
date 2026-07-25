@@ -1,114 +1,76 @@
 import Link from 'next/link'
+import { MODEL_PRICING } from '@/lib/models-config'
 
 const MODELS = [
-  { id: 'claude-opus-5', name: 'Claude Opus 5', provider: 'Anthropic', desc: 'Anthropic most capable model. Frontier intelligence, complex coding.', color: '#c9a96e', bg: '#fdf8ef' },
-  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', provider: 'Anthropic', desc: 'Best balance of speed and capability. Enterprise-grade reasoning.', color: '#c9a96e', bg: '#fdf8ef' },
-  { id: 'claude-haiku-4.7', name: 'Claude Haiku 4.7', provider: 'Anthropic', desc: 'Ultra-fast and affordable. Ideal for high-volume production.', color: '#c9a96e', bg: '#fdf8ef' },
-  { id: 'gpt-6', name: 'GPT-6', provider: 'OpenAI', desc: 'OpenAI latest frontier model. Cutting-edge reasoning and analysis.', color: '#10a37f', bg: '#f0fdf4' },
-  { id: 'gpt-5.5-turbo', name: 'GPT-5.5 Turbo', provider: 'OpenAI', desc: 'Optimized for speed. High-throughput, low-latency production.', color: '#10a37f', bg: '#f0fdf4' },
-  { id: 'gpt-4.7', name: 'GPT-4.7', provider: 'OpenAI', desc: 'Reliable multimodal model. Vision, audio, text understanding.', color: '#10a37f', bg: '#f0fdf4' },
-  { id: 'gemini-4', name: 'Gemini 4', provider: 'Google', desc: 'Google latest generation. Agentic, multimodal, 2M context.', color: '#4285f4', bg: '#eff6ff' },
-  { id: 'gemini-3.5-pro', name: 'Gemini 3.5 Pro', provider: 'Google', desc: 'Pro reasoning with 1M context window.', color: '#4285f4', bg: '#eff6ff' },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'Google', desc: 'Speed-optimized. High-frequency inference.', color: '#4285f4', bg: '#eff6ff' },
-  { id: 'deepseek-v5', name: 'DeepSeek V5', provider: 'DeepSeek', desc: 'Latest MoE architecture. Frontier performance, 1M context.', color: '#231f20', bg: '#f9f9f9' },
-  { id: 'deepseek-r3', name: 'DeepSeek R3', provider: 'DeepSeek', desc: 'Advanced reasoning model. Extended context.', color: '#231f20', bg: '#f9f9f9' },
-  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'DeepSeek', desc: 'Fast and cost-efficient. Great for everyday tasks.', color: '#231f20', bg: '#f9f9f9' },
-  { id: 'qwen4', name: 'Qwen4', provider: 'Alibaba', desc: 'Alibaba latest flagship. Multilingual, long context.', color: '#e05400', bg: '#fff7ed' },
-  { id: 'qwen3-max', name: 'Qwen3 Max', provider: 'Alibaba', desc: 'Large MoE model. Best-in-class for complex reasoning.', color: '#e05400', bg: '#fff7ed' },
-  { id: 'qwen3-turbo', name: 'Qwen3 Turbo', provider: 'Alibaba', desc: 'Speed-optimized. High-throughput production.', color: '#e05400', bg: '#fff7ed' },
-  { id: 'qwq-32b', name: 'QwQ-32B', provider: 'Alibaba', desc: 'Reasoning-focused. Math and coding specialist.', color: '#e05400', bg: '#fff7ed' },
-  { id: 'glm-6', name: 'GLM-6', provider: 'Zhipu', desc: 'Zhipu new frontier model. Strong reasoning and agentic.', color: '#6b21a8', bg: '#faf5ff' },
-  { id: 'glm-5.5', name: 'GLM-5.5', provider: 'Zhipu', desc: 'Balanced performance. General purpose, 128K context.', color: '#6b21a8', bg: '#faf5ff' },
-  { id: 'mistral-large-3', name: 'Mistral Large 3', provider: 'Mistral', desc: 'Mistral flagship. Function calling, multilingual.', color: '#b45309', bg: '#fff7ed' },
-  { id: 'mistral-small-4', name: 'Mistral Small 4', provider: 'Mistral', desc: 'Compact and efficient. Lightweight tasks.', color: '#b45309', bg: '#fff7ed' },
-  { id: 'codestral-2', name: 'Codestral 2', provider: 'Mistral', desc: 'Coding-specialized. Code generation expert.', color: '#b45309', bg: '#fff7ed' },
-  { id: 'llama-5-70b', name: 'LLaMA 5 70B', provider: 'Meta', desc: 'Meta latest open-source flagship. 70B parameters.', color: '#dc2626', bg: '#fef2f2' },
-  { id: 'llama-5-8b', name: 'LLaMA 5 8B', provider: 'Meta', desc: 'Efficient open-source. Fast inference.', color: '#dc2626', bg: '#fef2f2' },
-  { id: 'yi-lightning', name: 'Yi Lightning', provider: '01.AI', desc: 'Ultra-fast inference. Bilingual excellence.', color: '#2563eb', bg: '#eff6ff' },
-  { id: 'yi-large', name: 'Yi Large', provider: '01.AI', desc: 'Frontier-level reasoning. 200K context.', color: '#2563eb', bg: '#eff6ff' },
+  { id: 'vertex-pro', name: 'Vertex Pro', upstream: 'DeepSeek V4 Pro', desc: 'Flagship performance. Best all-around for complex tasks, coding, analysis.', tier: 'Pro' },
+  { id: 'vertex-reason', name: 'Vertex Reason', upstream: 'DeepSeek V4 Pro', desc: 'Deep reasoning mode. Step-by-step thinking for math, logic, planning.', tier: 'Enterprise' },
+  { id: 'vertex-flash', name: 'Vertex Flash', upstream: 'DeepSeek V4 Flash', desc: 'Fast and affordable. Perfect for high-volume, low-latency applications.', tier: 'Free' },
+  { id: 'vertex-plus', name: 'Vertex Plus', upstream: 'GLM-5.1', desc: 'Strong mid-tier model. Balanced speed, quality, and cost.', tier: 'Basic' },
+  { id: 'vertex-chat', name: 'Vertex Chat', upstream: 'GLM-5.2', desc: 'Budget-friendly workhorse. Great for simple chats and prototyping.', tier: 'Free' },
+  { id: 'deepseek-chat', name: 'DeepSeek Chat', upstream: 'DeepSeek V4 Flash', desc: 'General-purpose chat. Fast, reliable, cost-efficient.', tier: 'Free' },
+  { id: 'qwen-turbo', name: 'Qwen Turbo', upstream: 'GLM-5.2', desc: 'Quick, efficient responses. Great for lightweight tasks.', tier: 'Free' },
 ]
-
-const PROVIDER_COLORS: Record<string, { color: string; bg: string }> = {
-  Anthropic: { color: '#c9a96e', bg: '#fdf8ef' },
-  OpenAI:    { color: '#10a37f', bg: '#f0fdf4' },
-  Google:    { color: '#4285f4', bg: '#eff6ff' },
-  DeepSeek:  { color: '#231f20', bg: '#f9f9f9' },
-  Alibaba:   { color: '#e05400', bg: '#fff7ed' },
-  Zhipu:     { color: '#6b21a8', bg: '#faf5ff' },
-  Mistral:   { color: '#b45309', bg: '#fff7ed' },
-  Meta:      { color: '#dc2626', bg: '#fef2f2' },
-  '01.AI':   { color: '#2563eb', bg: '#eff6ff' },
-}
-
-const MODEL_PRICING: Record<string, { ours: string; official: string; save: string }> = {
-  'gpt-6':            { ours: '$8.00', official: '$30.00', save: '73%' },
-  'gpt-5.5-turbo':    { ours: '$2.00', official: '$10.00', save: '80%' },
-  'gpt-4.7':          { ours: '$0.60', official: '$5.00', save: '88%' },
-  'claude-opus-5':    { ours: '$8.00', official: '$30.00', save: '73%' },
-  'claude-sonnet-5':  { ours: '$2.00', official: '$8.00', save: '75%' },
-  'claude-haiku-4.7': { ours: '$0.60', official: '$2.50', save: '76%' },
-  'gemini-4':         { ours: '$2.00', official: '$8.00', save: '75%' },
-  'gemini-3.5-pro':   { ours: '$1.50', official: '$6.00', save: '75%' },
-  'gemini-3.5-flash': { ours: '$0.30', official: '$1.00', save: '70%' },
-  'deepseek-v5':      { ours: '$1.50', official: '$5.00', save: '70%' },
-  'deepseek-r3':      { ours: '$2.00', official: '$6.00', save: '67%' },
-  'deepseek-v4-flash':{ ours: '$0.30', official: '$1.00', save: '70%' },
-  'qwen4':            { ours: '$1.50', official: '$5.00', save: '70%' },
-  'qwen3-max':        { ours: '$1.50', official: '$4.00', save: '63%' },
-  'qwen3-turbo':      { ours: '$0.30', official: '$0.80', save: '63%' },
-  'qwq-32b':          { ours: '$0.50', official: '$1.50', save: '67%' },
-  'glm-6':            { ours: '$1.50', official: '$5.00', save: '70%' },
-  'glm-5.5':          { ours: '$0.60', official: '$2.00', save: '70%' },
-  'mistral-large-3':  { ours: '$1.50', official: '$6.00', save: '75%' },
-  'mistral-small-4':  { ours: '$0.30', official: '$1.00', save: '70%' },
-  'codestral-2':      { ours: '$0.50', official: '$2.00', save: '75%' },
-  'llama-5-70b':      { ours: '$1.50', official: '$4.00', save: '63%' },
-  'llama-5-8b':       { ours: '$0.30', official: '$0.80', save: '63%' },
-  'yi-lightning':     { ours: '$0.15', official: '$0.40', save: '63%' },
-  'yi-large':         { ours: '$1.00', official: '$3.00', save: '67%' },
-}
 
 export default function ModelsPage() {
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ marginBottom: '3rem' }}>
-        <h1 style={{ fontSize: '2.2rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Models</h1>
-        <p style={{ color: 'var(--text-gray)', fontSize: '1rem' }}>Latest generation AI models &mdash; updated June 2026</p>
+    <main style={{ maxWidth: 900, margin: '0 auto', padding: '5rem 2rem 4rem' }}>
+      <h1 style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+        Models
+      </h1>
+      <p style={{ color: '#6b7280', fontSize: '1.1rem', marginBottom: '3rem' }}>
+        Every model, one API key. Transparent pricing — pay only for what you use.
+      </p>
+
+      <div style={{ display: 'grid', gap: '1rem' }}>
+        {MODELS.map((m) => {
+          const price = MODEL_PRICING[m.id]
+          return (
+            <div key={m.id} style={{
+              border: '1px solid #e5e7eb', borderRadius: 12, padding: '1.25rem 1.5rem',
+              display: 'flex', alignItems: 'center', gap: '1.5rem',
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                  <span style={{ fontWeight: 600, fontSize: '1.05rem', fontFamily: 'monospace' }}>{m.name}</span>
+                  <span style={{
+                    fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase',
+                    padding: '0.15rem 0.5rem', borderRadius: 99,
+                    background: m.tier === 'Free' ? '#f3f4f6' : m.tier === 'Enterprise' ? '#fef2f2' : '#eff6ff',
+                    color: m.tier === 'Free' ? '#6b7280' : '#2563eb',
+                  }}>{m.tier}</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{m.desc}</div>
+                <div style={{ fontSize: '0.75rem', color: '#d1d5db', marginTop: '0.25rem' }}>
+                  Powered by {m.upstream}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', minWidth: 140 }}>
+                <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.15rem' }}>per 1K tokens</div>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', fontFamily: 'monospace' }}>
+                  {price?.inputPrice?.toFixed(2)} in / {price?.outputPrice?.toFixed(2)} out
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                  ~{((price?.inputPrice || 0) * 700 + (price?.outputPrice || 0) * 300).toFixed(2)}/1M blended
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
-      {Object.keys(PROVIDER_COLORS).map(provider => {
-        const pModels = MODELS.filter(m => m.provider === provider)
-        if (!pModels.length) return null
-        const { color, bg } = PROVIDER_COLORS[provider]
-        return (
-          <div key={provider} style={{ marginBottom: '2.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{provider}</span>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '0.75rem' }}>
-              {pModels.map(m => {
-                const pricing = MODEL_PRICING[m.id]
-                return (
-                  <div key={m.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem 1.2rem' }}>
-                    <div style={{ marginBottom: '0.4rem' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-dark)' }}>{m.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-gray)', marginTop: '0.15rem' }}>{m.desc}</div>
-                    </div>
-                    {pricing && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--text-gray)', borderTop: '1px solid var(--border)', marginTop: '0.6rem', paddingTop: '0.6rem' }}>
-                        <span style={{ color: '#16a34a', fontWeight: 600 }}>{pricing.ours}</span>
-                        <span style={{ textDecoration: 'line-through', color: '#9ca3af' }}>{pricing.official}</span>
-                        <span style={{ background: '#dcfce7', color: '#16a34a', padding: '0.1rem 0.45rem', borderRadius: 4, fontWeight: 600, fontSize: '0.7rem' }}>Save {pricing.save}</span>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
-    </div>
+      <div style={{ marginTop: '3rem', padding: '1.5rem', background: '#f9fafb', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.75rem' }}>How pricing works</h2>
+        <p style={{ color: '#6b7280', lineHeight: 1.7, fontSize: '0.9rem' }}>
+          Credits are 1:1 with tokens. $1 = 100,000 credits. Input and output tokens are billed
+          separately at the rates above. The blended estimate assumes 70% input / 30% output
+          — your actual cost depends on your usage pattern.
+        </p>
+        <p style={{ color: '#6b7280', lineHeight: 1.7, fontSize: '0.9rem', marginTop: '0.5rem' }}>
+          Subscription plans include monthly token quotas. Overage is billed from your credits.{' '}
+          <Link href="/billing" style={{ color: '#2563eb' }}>See plan details →</Link>
+        </p>
+      </div>
+    </main>
   )
 }

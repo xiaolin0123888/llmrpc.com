@@ -3,11 +3,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Docs — Quick Start',
-  description: 'Get started with LLMRpc in 2 minutes. One API key, multiple AI models. OpenAI-compatible endpoint.',
+  description: 'Get started with LLMRpc in 2 minutes. One API key, 100+ models. OpenAI-compatible endpoint.',
   alternates: { canonical: 'https://llmrpc.com/docs' },
   openGraph: {
     title: 'LLMRpc Docs — Quick Start',
-    description: 'Get started with LLMRpc in 2 minutes. One API key, multiple AI models.',
+    description: 'Get started with LLMRpc in 2 minutes. One API key, 100+ models.',
     url: 'https://llmrpc.com/docs',
   },
 }
@@ -29,15 +29,15 @@ const H2 = ({ children }: { children: React.ReactNode }) => (
   </h2>
 )
 
-const CURL_EXAMPLE = `curl https://llmrpc.com/v1/chat/completions \\
+const CURL = `curl https://llmrpc.com/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer $LLMRPC_API_KEY" \\
   -d '{
-    "model": "deepseek-chat",
+    "model": "vertex-flash",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'`
 
-const PYTHON_EXAMPLE = `from openai import OpenAI
+const PYTHON = `from openai import OpenAI
 
 client = OpenAI(
     base_url="https://llmrpc.com/v1",
@@ -45,13 +45,13 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="deepseek-chat",
+    model="vertex-flash",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 
 print(response.choices[0].message.content)`
 
-const NODE_EXAMPLE = `import OpenAI from 'openai'
+const NODE = `import OpenAI from 'openai'
 
 const client = new OpenAI({
   baseURL: 'https://llmrpc.com/v1',
@@ -59,26 +59,28 @@ const client = new OpenAI({
 })
 
 const response = await client.chat.completions.create({
-  model: 'deepseek-chat',
+  model: 'vertex-flash',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
 console.log(response.choices[0].message.content)`
 
-const FREE_MODELS = `# Free tier models — available immediately after signup
-deepseek-chat       # General-purpose chat
-gpt-4o              # Fast, capable
-qwen-turbo          # Quick responses
-llama-4-8b          # Lightweight
+const MODELS_LIST = `# Available models — one endpoint, switch by name
+vertex-pro       # DeepSeek V4 Pro — flagship, best all-around
+vertex-reason    # DeepSeek V4 Pro — deep reasoning mode
+vertex-flash     # DeepSeek V4 Flash — fast, affordable ($0.20/1M input)
+vertex-plus      # GLM-5.1 — strong mid-tier
+vertex-chat      # GLM-5.2 — budget-friendly
+deepseek-chat    # DeepSeek V4 Flash — general purpose
+qwen-turbo       # GLM-5.2 — quick, efficient
 
-# Upgrade to Pro or above for more models, including:
-# gpt-5.5, claude-opus-4.7, gemini-3.5-flash, and 100+ more`
+# View all models: llmrpc.com/models`
 
 const plans = [
   { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '4 models', color: '#6b7280' },
-  { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '6 models', color: '#2563eb' },
-  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '7 models', color: '#7c3aed' },
-  { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: '8 models', color: '#059669' },
+  { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '5 models', color: '#2563eb' },
+  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '6 models', color: '#7c3aed' },
+  { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: '7 models', color: '#059669' },
   { name: 'Unlimited', price: '$199', quota: 'Unlimited', models: 'All models', color: '#dc2626' },
 ]
 
@@ -106,34 +108,37 @@ export default function DocsPage() {
 
       <H2>3. Make your first request</H2>
       <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '0.75rem' }}>
-        LLMRpc uses an OpenAI-compatible API format. Replace the base URL and API key.
+        LLMRpc uses an OpenAI-compatible API. Replace the base URL and API key.
       </p>
 
       <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
         cURL
       </h3>
-      <CodeBlock code={CURL_EXAMPLE} />
+      <CodeBlock code={CURL} />
 
       <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
         Python
       </h3>
-      <CodeBlock code={PYTHON_EXAMPLE} />
+      <CodeBlock code={PYTHON} />
 
       <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
         Node.js
       </h3>
-      <CodeBlock code={NODE_EXAMPLE} />
+      <CodeBlock code={NODE} />
 
       <H2>Available models</H2>
       <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '1rem' }}>
-        Free tier gives you immediate access to these models. Upgrade your plan to unlock more.
+        All models share the same endpoint. Just change the model name to switch.
       </p>
-      <CodeBlock code={FREE_MODELS} />
+      <CodeBlock code={MODELS_LIST} />
       <p style={{ marginTop: '1rem' }}>
-        <Link href="/models" style={{ color: '#2563eb' }}>View all available models →</Link>
+        <Link href="/models" style={{ color: '#2563eb' }}>View all models and pricing →</Link>
       </p>
 
       <H2>Pricing</H2>
+      <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '1rem' }}>
+        Flat credit-based pricing — no per-model markup surprises.
+      </p>
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: '0.75rem', marginTop: '1rem',
@@ -153,7 +158,7 @@ export default function DocsPage() {
         ))}
       </div>
       <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: '0.75rem' }}>
-        Prepaid credits also available.{' '}
+        Prepaid credits also available via PayPal.{' '}
         <Link href="/billing" style={{ color: '#2563eb' }}>See full pricing →</Link>
       </p>
 
