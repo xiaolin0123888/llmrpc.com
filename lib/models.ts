@@ -1,3 +1,4 @@
+import { MODEL_MAPPING, getModelPrice, getUserFacingModelId } from '@/lib/models-config'
 import axios from 'axios'
 
 const siliconflow = axios.create({ timeout: 120_000,
@@ -53,8 +54,8 @@ export async function getModels(): Promise<ModelInfo[]> {
         provider: providerName,
         description: m.id,
         contextLen,
-        inputPrice: 0.5,
-        outputPrice: 1.0,
+        inputPrice: getModelPrice(getUserFacingModelId(m.id) || m.id).inputPrice,
+        outputPrice: getModelPrice(getUserFacingModelId(m.id) || m.id).outputPrice,
         modalities: ['text'],
         category,
       }

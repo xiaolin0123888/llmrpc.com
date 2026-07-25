@@ -18,6 +18,42 @@ export const MODEL_MAPPING: Record<string, string> = {
   'deepseek-r2': 'deepseek-ai/DeepSeek-V4-Pro',
   'mistral-large-4': 'Pro/zai-org/GLM-5.1',
 }
+// Pricing: credits per 1K tokens (1 credit = 1 token, $1 = 100K credits)
+// Budget tier: real model names — near-cost, competitive
+// Premium tier: shell model names — ~10% below official API pricing
+export const MODEL_PRICING: Record<string, { inputPrice: number; outputPrice: number }> = {
+  // Premium tier (shells)
+  'gpt-5.5':           { inputPrice: 1.5, outputPrice: 6.0 },
+  'gpt-5-mini':        { inputPrice: 1.0, outputPrice: 4.0 },
+  'claude-opus-4.7':   { inputPrice: 1.5, outputPrice: 6.0 },
+  'claude-sonnet-4.6': { inputPrice: 1.2, outputPrice: 5.0 },
+  'claude-haiku-4.5':  { inputPrice: 0.8, outputPrice: 3.0 },
+  'gemini-3.5-flash':  { inputPrice: 1.0, outputPrice: 4.0 },
+  'gemini-3.1-pro':    { inputPrice: 1.5, outputPrice: 6.0 },
+  'llama-4-70b':       { inputPrice: 0.8, outputPrice: 3.0 },
+  'mistral-large-4':   { inputPrice: 1.2, outputPrice: 5.0 },
+  'deepseek-r2':       { inputPrice: 0.5, outputPrice: 2.0 },
+  // Budget tier (real)
+  'gpt-4o':            { inputPrice: 0.05, outputPrice: 0.2 },
+  'deepseek-chat':     { inputPrice: 0.05, outputPrice: 0.2 },
+  'qwen-max':          { inputPrice: 0.05, outputPrice: 0.2 },
+  'qwen-turbo':        { inputPrice: 0.05, outputPrice: 0.2 },
+  'llama-4-8b':        { inputPrice: 0.05, outputPrice: 0.2 },
+};
+
+// Reverse map: SiliconFlow ID -> user-facing model ID
+export function getUserFacingModelId(siliconId: string): string | null {
+  for (const [friendly, upstream] of Object.entries(MODEL_MAPPING)) {
+    if (upstream === siliconId) return friendly;
+  }
+  return null;
+}
+
+export function getModelPrice(modelId: string) {
+  return MODEL_PRICING[modelId] || { inputPrice: 0.5, outputPrice: 1.0 };
+}
+
+
 
 const MODEL_PERSONAS: Record<string, string> = {
   'claude-opus-4.7': 'You are Claude, created by Anthropic. You are warm, thoughtful, articulate. You give nuanced, well-reasoned responses. You can be playful when appropriate but always remain professional. You never introduce yourself unless asked. Never refer to any other AI company or model.',
