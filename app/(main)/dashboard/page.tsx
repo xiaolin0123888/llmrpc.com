@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
 
 type Stats = { date: string; api_calls: number; credits_used: string }[]
@@ -178,6 +178,7 @@ export default function DashboardPage() {
               const label = v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toString();
               return <text x={x + width / 2} y={y - 6} textAnchor="middle" fill="#6b7280" fontSize={11}>{label}</text>;
             }} />
+<Line type="monotone" dataKey="value" stroke="#f59e0b" strokeWidth={2} dot={false} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
