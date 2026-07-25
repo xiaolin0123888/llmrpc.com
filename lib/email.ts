@@ -40,7 +40,7 @@ export async function sendVerificationEmail(email: string, verifyUrl: string) {
   const { data, error } = await getResend().emails.send({
     from: FROM,
     to: email,
-    subject: 'Verify your LLMRpc account — get 100,000 credits!',
+    subject: 'Verify your LLMRpc account — get 1,000,000 credits!',
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
         <div style="background: #0a0a0a; padding: 32px; border-radius: 12px; border: 1px solid #27272a;">
@@ -49,8 +49,8 @@ export async function sendVerificationEmail(email: string, verifyUrl: string) {
             <span style="font-size: 18px; font-weight: 600; color: #fff;">LLMRpc</span>
           </div>
           <h1 style="font-size: 20px; font-weight: 600; color: #fff; margin: 0 0 12px;">Verify your email to get started</h1>
-          <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">Welcome! Click the button below to verify your email address. Once confirmed, you'll receive <strong style="color: #60a5fa;">100,000 free credits</strong> to start using our full model library.</p>
-          <a href="${verifyUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500; margin-bottom: 24px;">Verify email & claim 100,000 credits</a>
+          <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">Welcome! Click the button below to verify your email address. Once confirmed, you'll receive <strong style="color: #60a5fa;">1,000,000 free credits</strong> to start using our full model library.</p>
+          <a href="${verifyUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500; margin-bottom: 24px;">Verify email & claim 1,000,000 credits</a>
           <p style="color: #52525b; font-size: 12px; line-height: 1.5; margin: 0 0 8px;">This verification link expires in 24 hours and can only be used once.</p>
           <p style="color: #52525b; font-size: 12px; margin: 0;">Or copy this URL into your browser:</p>
           <p style="color: #3b82f6; font-size: 12px; word-break: break-all; margin: 4px 0 0;">${verifyUrl}</p>

@@ -125,7 +125,7 @@ $ # vertex-pro, vertex-flash, vertex-reason, vertex-plus, vertex-chat, deepseek-
 
         <section style={{ padding: '4rem 2rem', textAlign: 'center' }}>
           <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '1rem' }}>
-            Free 100,000 credits on signup
+            Free 1,000,000 credits on signup
           </h2>
           <p style={{ color: 'var(--text-gray)', maxWidth: 500, margin: '0 auto 2rem', fontSize: '1.05rem', lineHeight: 1.7 }}>
             No credit card required. Try every model risk-free. Pay only when you need more.

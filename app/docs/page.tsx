@@ -97,7 +97,7 @@ export default function DocsPage() {
       <H2>1. Create an account</H2>
       <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '0.75rem' }}>
         <Link href="/register" style={{ color: '#2563eb' }}>Sign up for free</Link> — you will
-        get <strong>100,000 free credits</strong> to start. No credit card required.
+        get <strong>1,000,000 free credits</strong> to start. No credit card required.
       </p>
 
       <H2>2. Generate an API key</H2>
@@ -166,7 +166,7 @@ export default function DocsPage() {
         marginTop: '3rem', padding: '1.25rem', background: '#f0fdf4',
         borderRadius: 8, border: '1px solid #bbf7d0',
       }}>
-        <strong style={{ color: '#166534' }}>100,000 free credits</strong>
+        <strong style={{ color: '#166534' }}>1,000,000 free credits</strong>
         <span style={{ color: '#166534' }}> on signup. No time limit. </span>
         <Link href="/register" style={{ color: '#2563eb', fontWeight: 600 }}>
           Get started →

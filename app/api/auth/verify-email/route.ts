@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOne, prisma } from '@/lib/db'
 
-const REGISTER_BONUS = 100000
-const REFERRAL_BONUS = 150000
+const REGISTER_BONUS = 1000000
+const REFERRAL_BONUS = 500000
 
 export async function GET(req: NextRequest) {
   try {

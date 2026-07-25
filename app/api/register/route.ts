@@ -6,8 +6,8 @@ import { sendVerificationEmail } from '@/lib/email'
 import { safeJson } from '@/lib/safe-json'
 
 const VERIFY_EXPIRY_HOURS = 24
-const REGISTER_BONUS = 100000
-const REFERRAL_BONUS = 150000
+const REGISTER_BONUS = 1000000
+const REFERRAL_BONUS = 500000
 
 export async function POST(req: NextRequest) {
   try {
