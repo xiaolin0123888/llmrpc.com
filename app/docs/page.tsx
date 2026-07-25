@@ -68,7 +68,7 @@ console.log(response.choices[0].message.content)`
 const MODELS_LIST = `# Available models — one endpoint, switch by name
 deepseek-v4-pro   # DeepSeek V4 Pro — flagship, best all-around
 deepseek-v4-reason # DeepSeek V4 Pro — deep reasoning mode
-deepseek-v4-flash  # DeepSeek V4 Flash — fast, affordable ($0.20/1M input)
+deepseek-v4-flash  # DeepSeek V4 Flash — fast, affordable
 glm-5.1           # GLM-5.1 — strong mid-tier
 glm-5.2           # GLM-5.2 — budget-friendly
 deepseek-chat    # DeepSeek V4 Flash — general purpose
@@ -81,7 +81,7 @@ const plans = [
   { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '5 models', color: '#2563eb' },
   { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '6 models', color: '#7c3aed' },
   { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: '7 models', color: '#059669' },
-  { name: 'Unlimited', price: '$199', quota: 'Unlimited', models: 'All models', color: '#dc2626' },
+  { name: "500M", price: "$199", quota: "500M tokens/mo", models: "All models", color: "#dc2626" },
 ]
 
 export default function DocsPage() {
