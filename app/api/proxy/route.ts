@@ -204,36 +204,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Serialize per-user to prevent concurrent requests from undercounting overage.
-    // pg_advisory_xact_lock releases automatically when the transaction commits.
-    let lockedUsedTokens = usage.usedTokens // fallback; updated under advisory lock
-    const periodStart = await getBillingPeriodStart(userId)
-    const reservation = await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, [userId])
+    // ── Credit reservation ──
+    // Estimated overage + base reserve. The credit deduction itself is atomic
+    // (WHERE credits >= $1). The advisory lock for correct overage calculation
+    // lives in the settlement transaction below, AFTER the model call.
+    const overageTokensEstimate = Math.max(0, usage.usedTokens + reserveTokens - usage.quotaTokens) - Math.max(0, usage.usedTokens - usage.quotaTokens)
+    const overageCostEstimate = (overageTokensEstimate / 1000) * usage.overageRate
+    const totalReserve = reserveTokens + Math.round(overageCostEstimate * 1000)
 
-      const freshUsed = await getCurrentPeriodUsageTx(tx, userId, periodStart)
-
-      const lockedOverage = Math.max(0, freshUsed + reserveTokens - usage.quotaTokens) - Math.max(0, freshUsed - usage.quotaTokens)
-      const lockedOverageCost = (lockedOverage / 1000) * usage.overageRate
-      const lockedTotalReserve = reserveTokens + Math.round(lockedOverageCost * 1000)
-
-      if (lockedTotalReserve <= 0) {
-        return { success: true, totalReserve: 0, usedTokens: freshUsed }
-      }
-
-      const deductResult: any = await tx.$executeRawUnsafe(
+    if (totalReserve > 0) {
+      const deductResult: any = await execute(
         `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
-        lockedTotalReserve, userId
+        [totalReserve, userId]
       )
-      return { success: deductResult > 0, totalReserve: lockedTotalReserve, usedTokens: freshUsed }
-    })
-
-    if (!reservation.success) {
-      return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
+      if (deductResult === 0) {
+        return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
+      }
+      creditsReserved = totalReserve
+      reservationMade = true
     }
-    creditsReserved = reservation.totalReserve
-    lockedUsedTokens = reservation.usedTokens ?? usage.usedTokens
-    if (creditsReserved > 0) reservationMade = true
 
     // ── Call upstream; full refund on failure ──
     let response: any
@@ -260,11 +249,8 @@ export async function POST(req: NextRequest) {
 
     if (actualTokens <= 0) actualTokens = reserveTokens
 
-    const actualOverage = Math.max(0, lockedUsedTokens + actualTokens - usage.quotaTokens) - Math.max(0, lockedUsedTokens - usage.quotaTokens)
-    const actualOverageCost = (actualOverage / 1000) * usage.overageRate
-    const actualTotalCharge = actualTokens + Math.round(actualOverageCost * 1000)
-
-    const diff = creditsReserved - actualTotalCharge
+    // actualOverage / actualOverageCost / actualTotalCharge / diff
+    // are now calculated inside the settlement transaction under advisory lock.
 
     const maskedResponse = {
       id: 'chatcmpl-' + crypto.randomBytes(12).toString('hex'),
@@ -294,7 +280,24 @@ export async function POST(req: NextRequest) {
     // Final balance adjustment, usage records, and key timestamp commit together.
     // If the transaction fails, it rolls back entirely and the outer catch refunds
     // the untouched reservation.
+    // Get period start BEFORE the settlement transaction (renewPeriodIfNeeded
+    // uses global prisma and can't run inside the transactional callback).
+    const settlePeriodStart = await getBillingPeriodStart(userId)
+
     const settlement = await prisma.$transaction(async (tx) => {
+      // Per-user advisory lock: serializes settlement so each request sees
+      // committed usage from prior settlements. Released on commit.
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, [userId])
+
+      // Re-read usage under the lock — reflects all prior committed settlements.
+      const freshUsed = await getCurrentPeriodUsageTx(tx, userId, settlePeriodStart)
+
+      // Recalculate overage with post-lock data.
+      const actualOverage = Math.max(0, freshUsed + actualTokens - usage.quotaTokens) - Math.max(0, freshUsed - usage.quotaTokens)
+      const actualOverageCost = (actualOverage / 1000) * usage.overageRate
+      const actualTotalCharge = actualTokens + Math.round(actualOverageCost * 1000)
+      const diff = creditsReserved - actualTotalCharge
+
       let shortfall = false
       let extraCharge = 0
 
