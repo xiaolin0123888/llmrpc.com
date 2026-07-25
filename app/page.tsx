@@ -45,6 +45,7 @@ export default async function HomePage() {
         <div className="nav-menu">
           <Link href="/models">Models</Link>
           <Link href="/billing">Pricing</Link>
+          <Link href="/docs">Docs</Link>
           {session ? (
             <Link href="/dashboard">Dashboard</Link>
           ) : (
