@@ -3,10 +3,12 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Docs — Quick Start',
-  description: 'Get started with LLMRpc in 2 minutes. One API key for 100+ AI models. OpenAI-compatible endpoint.',
+  description: 'Get started with LLMRpc in 2 minutes. One API key, multiple AI models. OpenAI-compatible endpoint.',
+  alternates: { canonical: 'https://llmrpc.com/docs' },
   openGraph: {
     title: 'LLMRpc Docs — Quick Start',
-    description: 'Get started with LLMRpc in 2 minutes. One API key for 100+ AI models.',
+    description: 'Get started with LLMRpc in 2 minutes. One API key, multiple AI models.',
+    url: 'https://llmrpc.com/docs',
   },
 }
 
@@ -27,21 +29,11 @@ const H2 = ({ children }: { children: React.ReactNode }) => (
   </h2>
 )
 
-const H3 = ({ children }: { children: React.ReactNode }) => (
-  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
-    {children}
-  </h3>
-)
-
-const P = ({ children }: { children: React.ReactNode }) => (
-  <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '0.75rem' }}>{children}</p>
-)
-
 const CURL_EXAMPLE = `curl https://llmrpc.com/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer $LLMRPC_API_KEY" \\
   -d '{
-    "model": "gpt-5.5",
+    "model": "deepseek-chat",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'`
 
@@ -53,7 +45,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gpt-5.5",
+    model="deepseek-chat",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 
@@ -67,35 +59,27 @@ const client = new OpenAI({
 })
 
 const response = await client.chat.completions.create({
-  model: 'gpt-5.5',
+  model: 'deepseek-chat',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
 console.log(response.choices[0].message.content)`
 
-const MODELS_LIST = `# Same endpoint, same key — just change the model name
-gpt-5.5              # OpenAI GPT-5.5
-claude-opus-4.7      # Anthropic Claude Opus 4.7
-claude-sonnet-4.6    # Anthropic Claude Sonnet 4.6
-gemini-3.5           # Google Gemini 3.5
-deepseek-v3          # DeepSeek V3
-deepseek-r2          # DeepSeek R2 (reasoning)
-qwen3                # Alibaba Qwen3
-glm-5                # Zhipu GLM-5
-mistral-medium-3.5   # Mistral Medium 3.5`
+const FREE_MODELS = `# Free tier models — available immediately after signup
+deepseek-chat       # General-purpose chat
+gpt-4o              # Fast, capable
+qwen-turbo          # Quick responses
+llama-4-8b          # Lightweight
 
-const MIGRATION_EXAMPLE = `# 1. Change the base URL
-#    https://openrouter.ai/api/v1  ->  https://llmrpc.com/v1
-
-# 2. Change the Authorization header
-#    Authorization: Bearer sk-or-v1-...  ->  Authorization: Bearer sk-llm-...`
+# Upgrade to Pro or above for more models, including:
+# gpt-5.5, claude-opus-4.7, gemini-3.5-flash, and 100+ more`
 
 const plans = [
-  { name: 'Free', price: '$0', quota: '500K tokens/mo', color: '#6b7280' },
-  { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', color: '#2563eb' },
-  { name: 'Pro', price: '$49', quota: '20M tokens/mo', color: '#7c3aed' },
-  { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', color: '#059669' },
-  { name: 'Unlimited', price: '$199', quota: 'Unlimited', color: '#dc2626' },
+  { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '4 models', color: '#6b7280' },
+  { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '6 models', color: '#2563eb' },
+  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '7 models', color: '#7c3aed' },
+  { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: '8 models', color: '#059669' },
+  { name: 'Unlimited', price: '$199', quota: 'Unlimited', models: 'All models', color: '#dc2626' },
 ]
 
 export default function DocsPage() {
@@ -109,43 +93,49 @@ export default function DocsPage() {
       </p>
 
       <H2>1. Create an account</H2>
-      <P>
-        <Link href="/register" style={{ color: '#2563eb' }}>Sign up for free</Link> —
-        you will get <strong>1,000,000 free tokens</strong> to start. No credit card required.
-      </P>
+      <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '0.75rem' }}>
+        <Link href="/register" style={{ color: '#2563eb' }}>Sign up for free</Link> — you will
+        get <strong>100,000 free credits</strong> to start. No credit card required.
+      </p>
 
       <H2>2. Generate an API key</H2>
-      <P>
+      <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '0.75rem' }}>
         Go to <Link href="/settings/keys" style={{ color: '#2563eb' }}>Settings → API Keys</Link> and
         click "Create Key". Copy it — you will only see it once.
-      </P>
+      </p>
 
       <H2>3. Make your first request</H2>
-      <P>
-        LLMRpc is fully OpenAI-compatible. Replace the base URL and API key — everything else stays the same.
-      </P>
+      <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '0.75rem' }}>
+        LLMRpc uses an OpenAI-compatible API format. Replace the base URL and API key.
+      </p>
 
-      <H3>cURL</H3>
+      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
+        cURL
+      </h3>
       <CodeBlock code={CURL_EXAMPLE} />
 
-      <H3>Python</H3>
+      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
+        Python
+      </h3>
       <CodeBlock code={PYTHON_EXAMPLE} />
 
-      <H3>Node.js</H3>
+      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: '#374151' }}>
+        Node.js
+      </h3>
       <CodeBlock code={NODE_EXAMPLE} />
 
-      <H2>Switch models instantly</H2>
-      <P>
-        Change one string to use any model. No new API keys, no new billing.
-      </P>
-      <CodeBlock code={MODELS_LIST} />
+      <H2>Available models</H2>
+      <p style={{ color: '#4b5563', lineHeight: 1.7, marginBottom: '1rem' }}>
+        Free tier gives you immediate access to these models. Upgrade your plan to unlock more.
+      </p>
+      <CodeBlock code={FREE_MODELS} />
       <p style={{ marginTop: '1rem' }}>
-        <Link href="/models" style={{ color: '#2563eb' }}>View all 100+ models →</Link>
+        <Link href="/models" style={{ color: '#2563eb' }}>View all available models →</Link>
       </p>
 
       <H2>Pricing</H2>
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: '0.75rem', marginTop: '1rem',
       }}>
         {plans.map((plan) => (
@@ -157,24 +147,21 @@ export default function DocsPage() {
             <div style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
               {plan.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#9ca3af' }}>/mo</span>
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{plan.quota}</div>
+            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{plan.quota}</div>
+            <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{plan.models}</div>
           </div>
         ))}
       </div>
-      <P>
-        Pay-as-you-go credits also available.{' '}
+      <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: '0.75rem' }}>
+        Prepaid credits also available.{' '}
         <Link href="/billing" style={{ color: '#2563eb' }}>See full pricing →</Link>
-      </P>
-
-      <H2>Switching from OpenRouter?</H2>
-      <P>Same API format. Two things to change:</P>
-      <CodeBlock code={MIGRATION_EXAMPLE} />
+      </p>
 
       <div style={{
         marginTop: '3rem', padding: '1.25rem', background: '#f0fdf4',
         borderRadius: 8, border: '1px solid #bbf7d0',
       }}>
-        <strong style={{ color: '#166534' }}>Free 1,000,000 tokens</strong>
+        <strong style={{ color: '#166534' }}>100,000 free credits</strong>
         <span style={{ color: '#166534' }}> on signup. No time limit. </span>
         <Link href="/register" style={{ color: '#2563eb', fontWeight: 600 }}>
           Get started →

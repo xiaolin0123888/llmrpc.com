@@ -4,22 +4,18 @@ import './globals.css'
 const SITE_URL = 'https://llmrpc.com'
 const SITE_NAME = 'LLMRpc'
 const DESCRIPTION =
-  'One API key for 100+ AI models. OpenAI-compatible, prepaid credits, no per-model billing. GPT-5.5, Claude Opus 4.7, Gemini 3.5, DeepSeek and more.'
+  'OpenAI-compatible API gateway. One API key, multiple AI models. Prepaid credits, no per-model billing.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'LLMRpc — One API Key, Every AI Model',
+    default: 'LLMRpc — One API Key, Multiple AI Models',
     template: '%s | LLMRpc',
   },
   description: DESCRIPTION,
   keywords: [
     'AI API gateway',
-    'OpenAI alternative',
-    'Claude API',
-    'GPT API',
-    'AI model relay',
-    'OpenRouter alternative',
+    'OpenAI compatible API',
     'LLM API',
     'AI proxy',
     'unified AI API',
@@ -36,13 +32,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
-    title: 'LLMRpc — One API Key, Every AI Model',
+    title: 'LLMRpc — One API Key, Multiple AI Models',
     description: DESCRIPTION,
     url: SITE_URL,
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'LLMRpc — One API Key, Every AI Model',
+    title: 'LLMRpc — One API Key, Multiple AI Models',
     description: DESCRIPTION,
     creator: '@llmrpc',
   },
@@ -63,18 +59,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',
-              '@type': 'SoftwareApplication',
+              '@type': 'WebSite',
               name: 'LLMRpc',
-              applicationCategory: 'DeveloperApplication',
-              operatingSystem: 'All',
-              offers: {
-                '@type': 'Offer',
-                price: '0',
-                priceCurrency: 'USD',
-                description: 'Free tier with 500K tokens/month',
-              },
-              description: DESCRIPTION,
               url: SITE_URL,
+              description: DESCRIPTION,
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: `${SITE_URL}/models?q={search_term_string}`,
+                'query-input': 'required name=search_term_string',
+              },
             }),
           }}
         />
