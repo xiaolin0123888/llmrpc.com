@@ -287,7 +287,7 @@ export async function POST(req: NextRequest) {
     const settlement = await prisma.$transaction(async (tx) => {
       // Per-user advisory lock: serializes settlement so each request sees
       // committed usage from prior settlements. Released on commit.
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, [userId])
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, userId)
 
       // Re-read usage under the lock — reflects all prior committed settlements.
       const freshUsed = await getCurrentPeriodUsageTx(tx, userId, settlePeriodStart)
