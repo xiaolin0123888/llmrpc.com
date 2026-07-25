@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getOne, execute } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
+import { getOne, execute, prisma } from '@/lib/db'
 import { proxyRequest } from '@/lib/models'
-import { checkUsage, recordUsage, getUserPlanName } from '@/lib/usage'
+import { checkUsage, getUserPlanName } from '@/lib/usage'
 import { MODEL_MAPPING, PLAN_ACCESS, styleModelFilter, injectPersona } from '@/lib/models-config'
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate_limit'
 import crypto from 'crypto'
 
 const MAX_TOKENS_CAP = 16384
-const MAX_MESSAGES = 100
+const MAX_THINKING_TOKENS = 32768
+const DEFAULT_THINKING_TOKENS = 4096
+const MIN_THINKING_TOKENS = 128
+const MAX_MESSAGES = 10
 
 function normalizePlanName(raw: string): string {
   const map: Record<string, string> = {
@@ -15,6 +19,42 @@ function normalizePlanName(raw: string): string {
     enterprise: 'Enterprise', unlimited: 'Unlimited',
   }
   return map[raw.toLowerCase()] || 'Free'
+}
+
+async function recordUsageInTransaction(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  baseTokens: number,
+  overageCost: number,
+  overageTokens: number,
+  model: string,
+  billingShortfall: boolean
+): Promise<void> {
+  const meta = JSON.stringify({
+    model,
+    event: 'api_usage',
+    ...(billingShortfall ? { billingShortfall: true } : {}),
+  })
+  await tx.$executeRawUnsafe(
+    `INSERT INTO transactions (user_id, type, amount, description, metadata)
+     VALUES ($1, 'API_USAGE', $2, $3, $4::jsonb)`,
+    userId,
+    -baseTokens,
+    `API call: ${model}`,
+    meta
+  )
+
+  if (!billingShortfall && overageCost > 0 && overageTokens > 0) {
+    const overageMeta = JSON.stringify({ model, overage: true, overageCost, overageTokens })
+    await tx.$executeRawUnsafe(
+      `INSERT INTO transactions (user_id, type, amount, description, metadata)
+       VALUES ($1, 'API_USAGE', $2, $3, $4::jsonb)`,
+      userId,
+      -Math.round(overageCost * 1000),
+      `Overage: ${overageTokens} tokens over quota`,
+      overageMeta
+    )
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -58,6 +98,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 })
+    }
+
     const modelId = body.model
     if (!modelId) {
       return NextResponse.json({ error: 'model field required' }, { status: 400 })
@@ -75,51 +119,75 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ── Message count limit ──
-    if (Array.isArray(body.messages) && body.messages.length > MAX_MESSAGES) {
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return NextResponse.json({ error: 'messages must be a non-empty array' }, { status: 400 })
+    }
+
+    const siliconModel = MODEL_MAPPING[modelId]
+    const messages = injectPersona(modelId, body.messages)
+
+    if (messages.length > MAX_MESSAGES) {
       return NextResponse.json(
         { error: `Maximum ${MAX_MESSAGES} messages per request` },
         { status: 400 }
       )
     }
 
-    if (typeof body.n === 'number' && body.n !== 1) {
+    if (body.n !== undefined && body.n !== 1) {
       return NextResponse.json(
-        { error: 'n>1 is not supported. Make separate requests for multiple completions.' },
+        { error: 'Only n=1 is supported. Make separate requests for multiple completions.' },
         { status: 400 }
       )
     }
+    body.n = 1
 
-    const maxOutputTokens = Math.min(
-      typeof body.max_tokens === 'number' && body.max_tokens > 0 ? body.max_tokens : MAX_TOKENS_CAP,
-      MAX_TOKENS_CAP
-    )
-    if (body.max_tokens && body.max_tokens > MAX_TOKENS_CAP) {
-      body.max_tokens = MAX_TOKENS_CAP
+    if (
+      body.max_tokens !== undefined
+      && (!Number.isInteger(body.max_tokens) || body.max_tokens <= 0)
+    ) {
+      return NextResponse.json({ error: 'max_tokens must be a positive integer' }, { status: 400 })
     }
 
-    if (body.stream) body.stream = false
+    const maxOutputTokens = Math.min(body.max_tokens ?? MAX_TOKENS_CAP, MAX_TOKENS_CAP)
+    body.max_tokens = maxOutputTokens
+    body.stream = false
 
-    const siliconModel = MODEL_MAPPING[modelId]
-    const messages = injectPersona(modelId, body.messages || [])
+    if (body.enable_thinking !== undefined && typeof body.enable_thinking !== 'boolean') {
+      return NextResponse.json({ error: 'enable_thinking must be a boolean' }, { status: 400 })
+    }
 
-    // ── Estimate input from full request body (messages + tools + everything) ──
-    // Per SiliconFlow: Chinese ≈ 0.5–1 token/char.  ceil(len/2) gives ≤0.5 token/char.
-    // With 30% buffer this safely covers most Chinese + tool definitions.
-    const requestSize = JSON.stringify({
-      model: siliconModel,
-      messages,
-      tools: body.tools,
-      tool_choice: body.tool_choice,
-      temperature: body.temperature,
-      top_p: body.top_p,
-      frequency_penalty: body.frequency_penalty,
-      presence_penalty: body.presence_penalty,
-      stop: body.stop,
-    }).length
-    const estimatedInputTokens = Math.ceil(requestSize / 2)
-    const inputBuffer = Math.ceil(estimatedInputTokens * 0.3)
-    const reserveTokens = estimatedInputTokens + inputBuffer + maxOutputTokens
+    const thinkingEnabled = body.enable_thinking === true
+    let thinkingTokensReserved = 0
+    if (thinkingEnabled) {
+      const requestedThinkingTokens = body.thinking_budget ?? DEFAULT_THINKING_TOKENS
+      if (
+        !Number.isInteger(requestedThinkingTokens)
+        || requestedThinkingTokens < MIN_THINKING_TOKENS
+      ) {
+        return NextResponse.json(
+          { error: `thinking_budget must be an integer of at least ${MIN_THINKING_TOKENS}` },
+          { status: 400 }
+        )
+      }
+      thinkingTokensReserved = Math.min(requestedThinkingTokens, MAX_THINKING_TOKENS)
+      body.thinking_budget = thinkingTokensReserved
+    } else {
+      if (body.thinking_budget !== undefined) {
+        return NextResponse.json(
+          { error: 'enable_thinking must be true when thinking_budget is provided' },
+          { status: 400 }
+        )
+      }
+      body.enable_thinking = false
+      delete body.reasoning_effort
+    }
+
+    const requestBody = { ...body, model: siliconModel, messages }
+
+    // Use one token per UTF-8 byte across the complete outbound request.
+    // This deliberately over-reserves common text, Chinese, and tool schemas.
+    const estimatedInputTokens = Buffer.byteLength(JSON.stringify(requestBody), 'utf8')
+    const reserveTokens = estimatedInputTokens + maxOutputTokens + thinkingTokensReserved
 
     const usage = await checkUsage(userId, reserveTokens, keyRecord.credits)
 
@@ -155,7 +223,6 @@ export async function POST(req: NextRequest) {
     // ── Call upstream; full refund on failure ──
     let response: any
     try {
-      const requestBody = { ...body, messages }
       response = await proxyRequest(siliconModel, requestBody)
     } catch (upstreamErr) {
       console.error('[proxy upstream error]', upstreamErr)
@@ -164,6 +231,7 @@ export async function POST(req: NextRequest) {
           `UPDATE users SET credits = credits + $1 WHERE id = $2`,
           [creditsReserved, userId]
         )
+        reservationMade = false
       }
       return NextResponse.json({ error: 'Model provider unavailable' }, { status: 502 })
     }
@@ -182,34 +250,6 @@ export async function POST(req: NextRequest) {
     const actualTotalCharge = actualTokens + Math.round(actualOverageCost * 1000)
 
     const diff = creditsReserved - actualTotalCharge
-    if (diff > 0) {
-      await execute(
-        `UPDATE users SET credits = credits + $1 WHERE id = $2`,
-        [diff, userId]
-      )
-    } else if (diff < 0) {
-      const extraCharge = -diff
-      const extraResult: any = await execute(
-        `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
-        [extraCharge, userId]
-      )
-      if (extraResult === 0) {
-        console.error(
-          `[proxy] Overage charge failed: need ${extraCharge}, user ${userId}, model ${modelId}`
-        )
-        return NextResponse.json(
-          { error: 'Usage exceeded reservation. Please retry with sufficient credits.' },
-          { status: 402 }
-        )
-      }
-    }
-
-    // ── Record usage BEFORE clearing reservation flag ──
-    // If this fails, reservationMade stays true → outer catch refunds.
-    await recordUsage(userId, actualTokens, actualOverageCost, actualOverage, modelId, 'API call: ' + modelId)
-    await execute('UPDATE api_keys SET last_used = NOW() WHERE key_hash = $1', [hashedKey])
-
-    reservationMade = false
 
     const maskedResponse = {
       id: 'chatcmpl-' + crypto.randomBytes(12).toString('hex'),
@@ -235,10 +275,63 @@ export async function POST(req: NextRequest) {
     for (const [key, value] of Object.entries(rateLimitHeaders(rateCheck))) {
       proxiedRes.headers.set(key, value)
     }
+
+    // Final balance adjustment, usage records, and key timestamp commit together.
+    // If the transaction fails, it rolls back entirely and the outer catch refunds
+    // the untouched reservation.
+    const settlement = await prisma.$transaction(async (tx) => {
+      let shortfall = false
+      let extraCharge = 0
+
+      if (diff > 0) {
+        await tx.$executeRawUnsafe(
+          'UPDATE users SET credits = credits + $1 WHERE id = $2',
+          diff,
+          userId
+        )
+      } else if (diff < 0) {
+        extraCharge = -diff
+        const adjusted = await tx.$executeRawUnsafe(
+          'UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1',
+          extraCharge,
+          userId
+        )
+        shortfall = adjusted === 0
+      }
+
+      await recordUsageInTransaction(
+        tx,
+        userId,
+        actualTokens,
+        actualOverageCost,
+        actualOverage,
+        modelId,
+        shortfall
+      )
+      await tx.$executeRawUnsafe(
+        'UPDATE api_keys SET last_used = NOW() WHERE key_hash = $1',
+        hashedKey
+      )
+
+      return { shortfall, extraCharge }
+    })
+
+    reservationMade = false
+
+    if (settlement.shortfall) {
+      console.error(
+        `[proxy] Overage charge failed: need ${settlement.extraCharge}, user ${userId}, model ${modelId}`
+      )
+      return NextResponse.json(
+        { error: 'Usage exceeded reservation. Please retry with sufficient credits.' },
+        { status: 402 }
+      )
+    }
+
     return proxiedRes
   } catch (err) {
     console.error('[proxy error]', err)
-    // Only refund if we haven't reconciled + recorded
+    // A failed settlement transaction leaves the original reservation untouched.
     if (reservationMade && creditsReserved > 0 && userId) {
       try {
         await execute(
