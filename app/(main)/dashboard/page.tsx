@@ -189,7 +189,7 @@ export default function DashboardPage() {
       {/* Quick Links */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
         {[
-          { href: '/models', title: 'Browse Models', desc: 'Explore 10 AI models', icon: '🤖' },
+          { href: '/models', title: 'Browse Models', desc: 'Explore 28 AI models', icon: '🤖' },
           { href: '/settings/keys', title: 'API Keys', desc: 'Manage your API keys', icon: '🔑' },
           { href: '/referrals', title: 'Referrals', desc: 'Earn by inviting friends', icon: '🎁' },
         ].map(l => (

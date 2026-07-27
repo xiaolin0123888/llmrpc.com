@@ -3,11 +3,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Docs — Quick Start',
-  description: 'Get started with LLMRpc in 2 minutes. One API key, 10 models. OpenAI-compatible endpoint.',
+  description: 'Get started with LLMRpc in 2 minutes. One API key, 28 models. OpenAI-compatible endpoint.',
   alternates: { canonical: 'https://llmrpc.com/docs' },
   openGraph: {
     title: 'LLMRpc Docs — Quick Start',
-    description: 'Get started with LLMRpc in 2 minutes. One API key, 10 models.',
+    description: 'Get started with LLMRpc in 2 minutes. One API key, 28 models.',
     url: 'https://llmrpc.com/docs',
   },
 }
@@ -67,23 +67,26 @@ const response = await client.chat.completions.create({
 console.log(response.choices[0].message.content)`
 
 const MODELS_LIST = `# Available models — one endpoint, switch by model name
-deepseek-v4-pro   # DeepSeek V4 Pro — flagship reasoning
-deepseek-v4-flash  # DeepSeek V4 Flash — fast & affordable
-deepseek-v3       # DeepSeek V3.2 — reliable all-rounder
+deepseek-v4-pro   # DeepSeek V4 Pro — flagship
 deepseek-r1       # DeepSeek R1 — deep reasoning
-glm-5.2           # GLM-5.2 — budget-friendly workhorse
+qwen3.5-397b      # Qwen3.5 397B — massive capacity
+qwen3.5-122b      # Qwen3.5 122B — large-scale
+deepseek-v3       # DeepSeek V3.2 — latest V3
+qwen3.6-35b       # Qwen3.6 35B — latest gen
+qwen3.6-27b       # Qwen3.6 27B — fast & capable
+kimi-k2.6         # Kimi K2.6 — comprehensive
+nex-n2-pro        # Nex N2 Pro
 glm-5.1           # GLM-5.1 — strong mid-tier
-qwen3-32b         # Qwen3-32B — balanced
-qwen3.6-27b       # Qwen3.6-27B — fast & capable
-qwen3-coder       # Qwen3-Coder 30B — coding specialist
-kimi-k2.6         # Kimi K2.6 — latest Kimi
+deepseek-v4-flash # DeepSeek V4 Flash — ultra-fast
+glm-5.2           # GLM-5.2 — budget workhorse
+...and 16 more
 
 # View all models and pricing: llmrpc.com/models`
 
 const plans = [
   { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '5 models', color: '#6b7280' },
   { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '6 models', color: '#2563eb' },
-  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '10 models', color: '#7c3aed' },
+  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '28 models', color: '#7c3aed' },
   { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: 'All models', color: '#059669' },
   { name: 'Unlimited', price: '$199', quota: 'Unlimited', models: 'All models', color: '#dc2626' },
 ]
