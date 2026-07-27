@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       // Acquire both locks (held until transaction commits)
       await tx.$executeRawUnsafe(
         `SELECT pg_advisory_xact_lock(hashtext($1::text))`,
-        `register_ip_${clientIp}`
+        `register_ip_` + clientIp
       )
       await tx.$executeRawUnsafe(
         `SELECT pg_advisory_xact_lock(hashtext($1::text))`,
@@ -85,20 +85,21 @@ export async function POST(req: NextRequest) {
       }
 
       // Atomic insert — email UNIQUE prevents duplicates
-      const insRows: any[] = await tx.$queryRawUnsafe(
-        referredBy
-          ? `INSERT INTO users (email, password, name, registered_ip, referred_by)
+      const insRows: any[] = referredBy
+        ? await tx.$queryRawUnsafe(
+            `INSERT INTO users (email, password, name, registered_ip, referred_by)
              VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (email) DO NOTHING
-             RETURNING id`
-          : `INSERT INTO users (email, password, name, registered_ip)
+             RETURNING id`,
+            email, hashed, email.split('@')[0], clientIp, referredBy
+          )
+        : await tx.$queryRawUnsafe(
+            `INSERT INTO users (email, password, name, registered_ip)
              VALUES ($1, $2, $3, $4)
              ON CONFLICT (email) DO NOTHING
              RETURNING id`,
-        referredBy
-          ? [email, hashed, email.split('@')[0], clientIp, referredBy]
-          : [email, hashed, email.split('@')[0], clientIp]
-      )
+            email, hashed, email.split('@')[0], clientIp
+          )
       if (!insRows.length) {
         return { error: 'Email already registered', status: 409 }
       }

@@ -109,7 +109,7 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
   // For PAYMENT.SALE.COMPLETED, resource.id is the SALE id (not subscription).
   // billing_agreement_id links to the subscription. Handle in the event-specific block.
   // For BILLING.SUBSCRIPTION.* events, resource.id IS the subscription id.
-  const isSaleEvent = eventType === "PAYMENT.SALE.COMPLETED"
+  const isSaleEvent = eventType === "PAYMENT.SALE.COMPLETED" || eventType === "PAYMENT.SALE.REFUNDED" || eventType === "PAYMENT.SALE.REVERSED"
   const paypalSubId = isSaleEvent
     ? (resource as any)?.billing_agreement_id
     : resource?.id

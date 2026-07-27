@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
         for (const part of content) {
           if (part?.type === 'image_url' || part?.image_url) {
             imageCount++
-            imageTokens += 1000  // conservative per-image estimate
+            imageTokens += 17000  // covers high-res VL input (up to 16K+ tokens per image per SiliconFlow docs)
           }
         }
       }
