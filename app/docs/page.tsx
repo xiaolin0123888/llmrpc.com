@@ -3,11 +3,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Docs — Quick Start',
-  description: 'Get started with LLMRpc in 2 minutes. One API key, 184 models. OpenAI-compatible endpoint.',
+  description: 'Get started with LLMRpc in 2 minutes. One API key, 58 models. OpenAI-compatible endpoint.',
   alternates: { canonical: 'https://llmrpc.com/docs' },
   openGraph: {
     title: 'LLMRpc Docs — Quick Start',
-    description: 'Get started with LLMRpc in 2 minutes. One API key, 184 models.',
+    description: 'Get started with LLMRpc in 2 minutes. One API key, 58 models.',
     url: 'https://llmrpc.com/docs',
   },
 }
@@ -84,9 +84,9 @@ glm-5.2           # GLM-5.2 — budget workhorse
 # View all models and pricing: llmrpc.com/models`
 
 const plans = [
-  { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '15 models', color: '#6b71840' },
+  { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '15 models', color: '#6b7580' },
   { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '35 models', color: '#2563eb' },
-  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '184 models', color: '#7c3aed' },
+  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '58 models', color: '#7c3aed' },
   { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: 'All models', color: '#059669' },
   { name: 'Unlimited', price: '$199', quota: 'Unlimited', models: 'All models', color: '#dc2626' },
 ]
@@ -97,7 +97,7 @@ export default function DocsPage() {
       <h1 style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>
         Quick Start
       </h1>
-      <p style={{ color: '#6b71840', fontSize: '1.1rem', marginBottom: '3rem' }}>
+      <p style={{ color: '#6b7580', fontSize: '1.1rem', marginBottom: '3rem' }}>
         Go from zero to your first API call in under 2 minutes.
       </p>
 
@@ -159,12 +159,12 @@ export default function DocsPage() {
             <div style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
               {plan.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#9ca3af' }}>/mo</span>
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#6b71840' }}>{plan.quota}</div>
+            <div style={{ fontSize: '0.75rem', color: '#6b7580' }}>{plan.quota}</div>
             <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{plan.models}</div>
           </div>
         ))}
       </div>
-      <p style={{ color: '#6b71840', fontSize: '0.85rem', marginTop: '0.75rem' }}>
+      <p style={{ color: '#6b7580', fontSize: '0.85rem', marginTop: '0.75rem' }}>
         Prepaid credits also available via PayPal.{' '}
         <Link href="/billing" style={{ color: '#2563eb' }}>See full pricing →</Link>
       </p>

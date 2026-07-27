@@ -81,6 +81,8 @@ enum Plan {
   BASIC
   PRO
   ENTERPRISE
+  UNLIMITED
+  SCALE
 }
 
 enum SubStatus {

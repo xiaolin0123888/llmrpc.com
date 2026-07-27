@@ -24,10 +24,12 @@ interface PayPalWebhookEvent {
   }
 }
 
-const CREDIT_EVENT_TYPES = ["PAYMENT.CAPTURE.COMPLETED"]
+const CREDIT_EVENT_TYPES = ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED"]
 const SUBSCRIPTION_EVENT_TYPES = [
   "BILLING.SUBSCRIPTION.ACTIVATED",
   "PAYMENT.SALE.COMPLETED",
+  "PAYMENT.SALE.REFUNDED",
+  "PAYMENT.SALE.REVERSED",
   "BILLING.SUBSCRIPTION.CANCELLED",
   "BILLING.SUBSCRIPTION.SUSPENDED",
   "BILLING.SUBSCRIPTION.EXPIRED",
@@ -193,15 +195,15 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
       return NextResponse.json({ error: "Subscription not found" }, { status: 404 })
     }
 
-    // Dedup: check if this sale was already processed
-    const existing: any = await getOne(
-      `SELECT id FROM transactions
-       WHERE type = 'SUBSCRIPTION'
-         AND metadata::jsonb->>'saleId' = $1
-       LIMIT 1`,
+    // Dedup: use a separate table to atomically track processed sale IDs.
+    // INSERT ON CONFLICT prevents race between concurrent webhook deliveries.
+    const deduped: any = await getOne(
+      `INSERT INTO paypal_processed_sales (sale_id) VALUES ($1)
+       ON CONFLICT (sale_id) DO NOTHING
+       RETURNING sale_id`,
       [saleId]
     )
-    if (existing) {
+    if (!deduped) {
       console.log(`[paypal webhook] Sale ${saleId} already processed, skipping`)
       return NextResponse.json({ received: true, processed: false, reason: "duplicate_sale" })
     }
@@ -241,6 +243,47 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
 
     console.log(`[paypal webhook] Subscription ${billingAgreementId} renewed (sale ${saleId}) for user ${sub.user_id}`)
     return NextResponse.json({ received: true, processed: true, action: "renewed" })
+  }
+
+  if (eventType === "PAYMENT.SALE.REFUNDED" || eventType === "PAYMENT.SALE.REVERSED") {
+    const saleId = resource.id!
+    const billingAgreementId: string | undefined = (resource as any)?.billing_agreement_id
+    if (!billingAgreementId) return NextResponse.json({ received: true, processed: false, reason: "no_billing_agreement" })
+    const sub = await getOne(`SELECT * FROM subscriptions WHERE paypal_sub_id = $1`, [billingAgreementId])
+    if (!sub) return NextResponse.json({ error: "Subscription not found" }, { status: 404 })
+    // Subscription payment was refunded or reversed — revoke the period extension.
+    // Find the renewal transaction to determine how much time was added.
+    const renewalTx: any = await getOne(
+      `SELECT id, metadata FROM transactions
+       WHERE type = 'SUBSCRIPTION'
+         AND metadata::jsonb->>'saleId' = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [saleId]
+    )
+    if (!renewalTx) {
+      console.log(`[paypal webhook] No renewal found for refunded sale ${saleId}`)
+      return NextResponse.json({ received: true, processed: false, reason: "no_renewal_found" })
+    }
+
+    // Roll back one month from period end
+    await prisma.$executeRawUnsafe(
+      `UPDATE subscriptions
+       SET current_period_end = current_period_end - INTERVAL '1 month'
+       WHERE id = $1 AND paypal_sub_id = $2
+         AND current_period_end > NOW()`,
+      sub.id, billingAgreementId
+    )
+
+    // Mark the renewal transaction as refunded
+    await prisma.$executeRawUnsafe(
+      `UPDATE transactions
+       SET metadata = metadata::jsonb || '{"refunded": true, "refundedAt": "${new Date().toISOString()}"}'::jsonb
+       WHERE id = $1`,
+      renewalTx.id
+    )
+
+    console.log(`[paypal webhook] Refunded sale ${saleId}, rolled back subscription ${billingAgreementId}`)
+    return NextResponse.json({ received: true, processed: true, action: "refunded" })
   }
 
   if (eventType === "BILLING.SUBSCRIPTION.CANCELLED") {
@@ -293,6 +336,39 @@ async function handleCreditEvent(body: PayPalWebhookEvent) {
   if (!captureId || !capturedAmount || !capturedCurrency) {
     console.error("[paypal webhook] Missing capture details", { captureId, capturedAmount, capturedCurrency })
     return NextResponse.json({ error: "Incomplete capture data" }, { status: 400 })
+  }
+
+  if (captureStatus === "REFUNDED" || captureStatus === "REVERSED") {
+    // Credit purchase was refunded — revoke the credits
+    const creditedTx: any = await getOne(
+      `SELECT * FROM transactions
+       WHERE type = 'PURCHASE'
+         AND (metadata::jsonb->>'paypalCaptureId' = $1
+              OR metadata::jsonb->>'orderId' = $1)
+         AND metadata::jsonb->>'status' = 'completed'
+       ORDER BY created_at DESC LIMIT 1`,
+      [captureId]
+    )
+    if (!creditedTx) {
+      console.log(`[paypal webhook] No credited transaction found for refunded capture ${captureId}`)
+      return NextResponse.json({ received: true, processed: false, reason: "no_credit_tx" })
+    }
+    const meta = typeof creditedTx.metadata === 'string' ? JSON.parse(creditedTx.metadata) : creditedTx.metadata
+    const tokenAmount = Number(meta?.tokens) || 0
+    if (tokenAmount > 0) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
+        tokenAmount, creditedTx.user_id
+      )
+      await prisma.$executeRawUnsafe(
+        `UPDATE transactions
+         SET metadata = metadata::jsonb || '{"status": "refunded", "refundedAt": "${new Date().toISOString()}"}'::jsonb
+         WHERE id = $1`,
+        creditedTx.id
+      )
+      console.log(`[paypal webhook] Revoked ${tokenAmount} credits from user ${creditedTx.user_id} for refunded capture ${captureId}`)
+    }
+    return NextResponse.json({ received: true, processed: true, action: "credits_revoked" })
   }
 
   if (captureStatus !== "COMPLETED") {

@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
 
     const maxOutputTokens = Math.min(body.max_tokens ?? MAX_TOKENS_CAP, MAX_TOKENS_CAP)
     body.max_tokens = maxOutputTokens
-    body.stream = false
+    body.stream = false  // non-streaming only; streaming requires SSE proxy rewrite
 
     if (body.enable_thinking !== undefined && typeof body.enable_thinking !== 'boolean') {
       return NextResponse.json({ error: 'enable_thinking must be a boolean' }, { status: 400 })
@@ -182,11 +182,35 @@ export async function POST(req: NextRequest) {
       delete body.reasoning_effort
     }
 
+        // ── Image token estimation ──
+    // VL models charge per image tile. Conservative estimate: 1000 tokens/image.
+    // Also enforce max images per request to prevent upstream cost abuse.
+    const MAX_IMAGES_PER_REQUEST = 10
+    let imageTokens = 0
+    let imageCount = 0
+    for (const msg of messages as any[]) {
+      const content = msg?.content
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          if (part?.type === 'image_url' || part?.image_url) {
+            imageCount++
+            imageTokens += 1000  // conservative per-image estimate
+          }
+        }
+      }
+    }
+    if (imageCount > MAX_IMAGES_PER_REQUEST) {
+      return NextResponse.json(
+        { error: `Maximum ${MAX_IMAGES_PER_REQUEST} images per request` },
+        { status: 400 }
+      )
+    }
+
     const requestBody = { ...body, model: siliconModel, messages }
 
-    // Use one token per UTF-8 byte across the complete outbound request.
-    // This deliberately over-reserves common text, Chinese, and tool schemas.
-    const estimatedInputTokens = Buffer.byteLength(JSON.stringify(requestBody), 'utf8')
+    // Use one token per UTF-8 byte for text + 1000 tokens per image.
+    // This deliberately over-reserves to prevent upstream cost abuse on VL models.
+    const estimatedInputTokens = Buffer.byteLength(JSON.stringify(requestBody), 'utf8') + imageTokens
     const reserveTokens = estimatedInputTokens + maxOutputTokens + thinkingTokensReserved
 
     const usage = await checkUsage(userId, reserveTokens, keyRecord.credits)
@@ -252,24 +276,38 @@ export async function POST(req: NextRequest) {
     // actualOverage / actualOverageCost / actualTotalCharge / diff
     // are now calculated inside the settlement transaction under advisory lock.
 
-    const maskedResponse = {
+    const maskedResponse: any = {
       id: 'chatcmpl-' + crypto.randomBytes(12).toString('hex'),
       object: response?.object || 'chat.completion',
       created: response?.created || Math.floor(Date.now() / 1000),
       model: modelId,
-      choices: (response?.choices || []).map((choice: any) => ({
-        index: choice?.index ?? 0,
-        message: {
-          role: 'assistant',
+      choices: (response?.choices || []).map((choice: any) => {
+        const msg: any = {
+          role: choice?.message?.role || 'assistant',
           content: styleModelFilter(modelId, choice?.message?.content || choice?.delta?.content || ''),
-        },
-        finish_reason: choice?.finish_reason || 'stop',
-      })),
+        }
+        // Preserve tool_calls for function-calling compatibility
+        if (choice?.message?.tool_calls) {
+          msg.tool_calls = choice.message.tool_calls
+        }
+        // Preserve reasoning_content for thinking models
+        if (choice?.message?.reasoning_content) {
+          msg.reasoning_content = choice.message.reasoning_content
+        }
+        const result: any = { index: choice?.index ?? 0, message: msg, finish_reason: choice?.finish_reason || 'stop' }
+        // Pass through logprobs if present
+        if (choice?.logprobs) result.logprobs = choice.logprobs
+        return result
+      }),
       usage: {
         prompt_tokens: response?.usage?.prompt_tokens || 0,
         completion_tokens: response?.usage?.completion_tokens || 0,
         total_tokens: (response?.usage?.prompt_tokens || 0) + (response?.usage?.completion_tokens || 0),
       },
+    }
+    // Pass through system_fingerprint if present
+    if (response?.system_fingerprint) {
+      maskedResponse.system_fingerprint = response.system_fingerprint
     }
 
     const proxiedRes = NextResponse.json(maskedResponse)

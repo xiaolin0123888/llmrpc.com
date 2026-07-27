@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { getOne, execute } from '@/lib/db'
+import { getOne, execute, prisma } from '@/lib/db'
 import crypto from 'crypto'
 import { sendVerificationEmail } from '@/lib/email'
 import { safeJson } from '@/lib/safe-json'
@@ -8,15 +8,12 @@ import { safeJson } from '@/lib/safe-json'
 const VERIFY_EXPIRY_HOURS = 24
 const REGISTER_BONUS = 1000000
 const REFERRAL_BONUS = 500000
-const IP_RATE_LIMIT = 3        // max registrations per IP per hour
-const GLOBAL_RATE_LIMIT = 20   // max total registrations per hour
+const IP_RATE_LIMIT = 3
+const GLOBAL_RATE_LIMIT = 20
 
-// Extract real client IP: prefer nginx-set X-Real-IP, do NOT trust x-forwarded-for blindly.
-// nginx is configured with proxy_set_header X-Real-IP $remote_addr;
 function getClientIp(req: NextRequest): string {
   const realIp = req.headers.get('x-real-ip')
   if (realIp) return realIp.trim()
-  // No x-real-ip = not behind our trusted proxy; reject with placeholder
   return '0.0.0.0'
 }
 
@@ -24,30 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     const clientIp = getClientIp(req)
 
-    // ── Rate limit: use advisory lock to serialize checks ──
-    // This prevents concurrent registrations from all passing the count check.
-    const lockKey = `register_rate_${clientIp}`
-    const rateResult = await getOne(
-      `SELECT pg_advisory_xact_lock(hashtext($1::text)) IS NOT NULL AS locked,
-              (SELECT COUNT(*)::int FROM users WHERE registered_ip = $2 AND created_at > NOW() - INTERVAL '1 hour') AS ip_count,
-              (SELECT COUNT(*)::int FROM users WHERE created_at > NOW() - INTERVAL '1 hour') AS global_count`,
-      [lockKey, clientIp]
-    )
-
-    if (rateResult?.ip_count >= IP_RATE_LIMIT) {
-      return NextResponse.json(
-        { error: 'Too many registrations from this IP. Please try again later.' },
-        { status: 429 }
-      )
-    }
-
-    if (rateResult?.global_count >= GLOBAL_RATE_LIMIT) {
-      return NextResponse.json(
-        { error: 'Registration temporarily unavailable. Please try again later.' },
-        { status: 429 }
-      )
-    }
-
+    // Parse body early so we can validate before the transaction
     const [body, parseError] = await safeJson<{ email?: string; password?: string; ref?: string }>(req)
     if (parseError) return parseError
 
@@ -64,49 +38,99 @@ export async function POST(req: NextRequest) {
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
     }
-    // Look up referrer by referral code
-    let referredBy: string | null = null
-    if (ref) {
-      const referrer = await getOne('SELECT id FROM users WHERE referral_code = $1', [ref])
-      if (referrer) referredBy = referrer.id
-    }
 
     const hashed = await bcrypt.hash(password, 12)
-
-    // Atomic INSERT — email is UNIQUE, so duplicate returns null
-    // This eliminates the check-then-insert race condition
-    const inserted = await getOne(
-      referredBy
-        ? `INSERT INTO users (email, password, name, registered_ip, referred_by)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (email) DO NOTHING
-           RETURNING id`
-        : `INSERT INTO users (email, password, name, registered_ip)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (email) DO NOTHING
-           RETURNING id`,
-      referredBy
-        ? [email, hashed, email.split('@')[0], clientIp, referredBy]
-        : [email, hashed, email.split('@')[0], clientIp]
-    )
-    if (!inserted) {
-      return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
-    }
-    const user = inserted
-    if (!user) return NextResponse.json({ error: 'Internal error' }, { status: 500 })
-
-    // Generate verification token (expires in 24h)
     const token = crypto.randomBytes(32).toString('hex')
     const expires = new Date(Date.now() + VERIFY_EXPIRY_HOURS * 60 * 60 * 1000)
-    await execute('DELETE FROM email_verifications WHERE user_id = $1', [user.id])
-    await execute(
-      'INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)',
-      [user.id, token, expires]
-    )
 
-    // Send verification email — bonus NOT credited yet
-    const verifyUrl = `https://llmrpc.com/verify-email?token=${token}&email=${encodeURIComponent(email)}`
-    await sendVerificationEmail(email, verifyUrl)
+    // ── Transaction: lock → recheck → insert ──
+    // Both IP lock and global lock are held for the entire transaction.
+    // This serializes registration so concurrent requests can't all pass the check.
+    const result = await prisma.$transaction(async (tx) => {
+      // Acquire both locks (held until transaction commits)
+      await tx.$executeRawUnsafe(
+        `SELECT pg_advisory_xact_lock(hashtext($1::text))`,
+        `register_ip_${clientIp}`
+      )
+      await tx.$executeRawUnsafe(
+        `SELECT pg_advisory_xact_lock(hashtext($1::text))`,
+        'register_global'
+      )
+
+      // Re-check counts under lock
+      const ipRows: any[] = await tx.$queryRawUnsafe(
+        `SELECT COUNT(*)::int as cnt FROM users
+         WHERE registered_ip = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
+        clientIp
+      )
+      if (ipRows[0]?.cnt >= IP_RATE_LIMIT) {
+        return { error: 'Too many registrations from this IP. Please try again later.', status: 429 }
+      }
+
+      const globalRows: any[] = await tx.$queryRawUnsafe(
+        `SELECT COUNT(*)::int as cnt FROM users
+         WHERE created_at > NOW() - INTERVAL '1 hour'`
+      )
+      if (globalRows[0]?.cnt >= GLOBAL_RATE_LIMIT) {
+        return { error: 'Registration temporarily unavailable. Please try again later.', status: 429 }
+      }
+
+      // Look up referrer
+      let referredBy: string | null = null
+      if (ref) {
+        const refRows: any[] = await tx.$queryRawUnsafe(
+          'SELECT id FROM users WHERE referral_code = $1', ref
+        )
+        if (refRows.length) referredBy = refRows[0].id
+      }
+
+      // Atomic insert — email UNIQUE prevents duplicates
+      const insRows: any[] = await tx.$queryRawUnsafe(
+        referredBy
+          ? `INSERT INTO users (email, password, name, registered_ip, referred_by)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (email) DO NOTHING
+             RETURNING id`
+          : `INSERT INTO users (email, password, name, registered_ip)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (email) DO NOTHING
+             RETURNING id`,
+        referredBy
+          ? [email, hashed, email.split('@')[0], clientIp, referredBy]
+          : [email, hashed, email.split('@')[0], clientIp]
+      )
+      if (!insRows.length) {
+        return { error: 'Email already registered', status: 409 }
+      }
+
+      const userId = insRows[0].id
+
+      // Save verification token
+      await tx.$executeRawUnsafe(
+        'DELETE FROM email_verifications WHERE user_id = $1', userId
+      )
+      await tx.$executeRawUnsafe(
+        'INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)',
+        userId, token, expires
+      )
+
+      return { userId, email }
+    })
+
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+
+    // ── Send email outside transaction ──
+    // If email fails, user is created but unverified. They can register again
+    // (will get 409, which prompts them to check email or contact support).
+    try {
+      const verifyUrl = `https://llmrpc.com/verify-email?token=${token}&email=${encodeURIComponent(email)}`
+      await sendVerificationEmail(email, verifyUrl)
+    } catch (emailErr) {
+      console.error('[register] Verification email failed:', emailErr)
+      // Don't fail the registration — user exists, email can be retried
+    }
 
     return NextResponse.json({
       success: true,

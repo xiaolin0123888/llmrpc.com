@@ -176,7 +176,7 @@ export default function DashboardPage() {
               <Bar dataKey="value" fill="#2563eb" radius={[4,4,0,0]} maxBarSize={32} label={({ value, x, y, width }: any) => {
               const v = value as number;
               const label = v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toString();
-              return <text x={x + width / 2} y={y - 6} textAnchor="middle" fill="#6b71840" fontSize={11}>{label}</text>;
+              return <text x={x + width / 2} y={y - 6} textAnchor="middle" fill="#6b7580" fontSize={11}>{label}</text>;
             }} />
 <Line type="monotone" dataKey="value" stroke="#f59e0b" strokeWidth={2} dot={false} />
             </BarChart>
@@ -189,7 +189,7 @@ export default function DashboardPage() {
       {/* Quick Links */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
         {[
-          { href: '/models', title: 'Browse Models', desc: 'Explore 184 AI models', icon: '🤖' },
+          { href: '/models', title: 'Browse Models', desc: 'Explore 58 AI models', icon: '🤖' },
           { href: '/settings/keys', title: 'API Keys', desc: 'Manage your API keys', icon: '🔑' },
           { href: '/referrals', title: 'Referrals', desc: 'Earn by inviting friends', icon: '🎁' },
         ].map(l => (
