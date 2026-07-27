@@ -24,23 +24,24 @@ export async function POST(req: NextRequest) {
   try {
     const clientIp = getClientIp(req)
 
-    // ── Rate limit: per-IP ──
-    const ipCount: any = await getOne(
-      "SELECT COUNT(*)::int as cnt FROM users WHERE registered_ip = $1 AND created_at > NOW() - INTERVAL '1 hour'",
-      [clientIp]
+    // ── Rate limit: use advisory lock to serialize checks ──
+    // This prevents concurrent registrations from all passing the count check.
+    const lockKey = `register_rate_${clientIp}`
+    const rateResult = await getOne(
+      `SELECT pg_advisory_xact_lock(hashtext($1::text)) IS NOT NULL AS locked,
+              (SELECT COUNT(*)::int FROM users WHERE registered_ip = $2 AND created_at > NOW() - INTERVAL '1 hour') AS ip_count,
+              (SELECT COUNT(*)::int FROM users WHERE created_at > NOW() - INTERVAL '1 hour') AS global_count`,
+      [lockKey, clientIp]
     )
-    if (ipCount?.cnt >= IP_RATE_LIMIT) {
+
+    if (rateResult?.ip_count >= IP_RATE_LIMIT) {
       return NextResponse.json(
         { error: 'Too many registrations from this IP. Please try again later.' },
         { status: 429 }
       )
     }
 
-    // ── Rate limit: global ──
-    const globalCount: any = await getOne(
-      "SELECT COUNT(*)::int as cnt FROM users WHERE created_at > NOW() - INTERVAL '1 hour'"
-    )
-    if (globalCount?.cnt >= GLOBAL_RATE_LIMIT) {
+    if (rateResult?.global_count >= GLOBAL_RATE_LIMIT) {
       return NextResponse.json(
         { error: 'Registration temporarily unavailable. Please try again later.' },
         { status: 429 }

@@ -14,10 +14,10 @@ interface PayPalWebhookEvent {
     subscriber?: { payer_id?: string }
     billing_agreement_id?: string
     billing_info?: {
-      last_payment?: { amount?: { value?: string; currency_code?: string } }
+      last_payment?: { amount?: { total?: string; currency?: string; value?: string; currency_code?: string } }
       next_billing_time?: string
     }
-    amount?: { value?: string; currency_code?: string }
+    amount?: { total?: string; currency?: string; value?: string; currency_code?: string }
     supplementary_data?: {
       related_ids?: { order_id?: string }
     }
@@ -101,13 +101,20 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
-  const resource = body.resource
-  if (!resource?.id) {
-    return NextResponse.json({ error: "Missing subscription resource" }, { status: 400 })
-  }
-
-  const paypalSubId = resource.id
+  const resource = body.resource!
   const eventType = body.event_type!
+
+  // For PAYMENT.SALE.COMPLETED, resource.id is the SALE id (not subscription).
+  // billing_agreement_id links to the subscription. Handle in the event-specific block.
+  // For BILLING.SUBSCRIPTION.* events, resource.id IS the subscription id.
+  const isSaleEvent = eventType === "PAYMENT.SALE.COMPLETED"
+  const paypalSubId = isSaleEvent
+    ? (resource as any)?.billing_agreement_id
+    : resource?.id
+
+  if (!paypalSubId) {
+    return NextResponse.json({ error: "Missing subscription identifier" }, { status: 400 })
+  }
 
   // Find local subscription by PayPal subscription ID
   const sub = await getOne(
@@ -164,20 +171,47 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
   }
 
   if (eventType === "PAYMENT.SALE.COMPLETED") {
-    // Subscription recurring payment — extend period by 1 month from current end
-    const paidAmount = resource.amount?.value
-    const paidCurrency = resource.amount?.currency_code
+    // PAYMENT.SALE.COMPLETED — resource.id is the SALE id, NOT the subscription id.
+    // The billing_agreement_id links the sale to the subscription.
+    // PayPal Sale fields: amount.total + amount.currency (not value/currency_code).
+    const saleId = resource.id!
+    const billingAgreementId: string | undefined = (resource as any)?.billing_agreement_id
+
+    if (!billingAgreementId) {
+      // This sale may be a one-time purchase, not a subscription payment.
+      // Route to credit handler instead.
+      return handleCreditEvent(body)
+    }
+
+    // Find local subscription by billing_agreement_id (the PayPal subscription ID)
+    const sub = await getOne(
+      `SELECT * FROM subscriptions WHERE paypal_sub_id = $1`,
+      [billingAgreementId]
+    )
+    if (!sub) {
+      console.error(`[paypal webhook] No local subscription for billing agreement ${billingAgreementId}`)
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 })
+    }
+
+    // Dedup: check if this sale was already processed
+    const existing: any = await getOne(
+      `SELECT id FROM transactions
+       WHERE type = 'SUBSCRIPTION'
+         AND metadata::jsonb->>'saleId' = $1
+       LIMIT 1`,
+      [saleId]
+    )
+    if (existing) {
+      console.log(`[paypal webhook] Sale ${saleId} already processed, skipping`)
+      return NextResponse.json({ received: true, processed: false, reason: "duplicate_sale" })
+    }
+
+    const paidAmount = resource.amount?.total
+    const paidCurrency = resource.amount?.currency
 
     if (paidCurrency && paidCurrency !== "USD") {
       console.error(`[paypal webhook] Unexpected subscription currency: ${paidCurrency}`)
       return NextResponse.json({ error: "Unsupported currency" }, { status: 400 })
-    }
-
-    // Verify the sale is linked to this subscription via billing_agreement_id
-    const billingAgreementId = (resource as any)?.billing_agreement_id
-    if (!billingAgreementId || billingAgreementId !== paypalSubId) {
-      console.error(`[paypal webhook] Sale billing_agreement_id mismatch: ${billingAgreementId} vs ${paypalSubId}`)
-      return NextResponse.json({ error: "Billing agreement mismatch" }, { status: 400 })
     }
 
     await prisma.$transaction(async (tx) => {
@@ -186,7 +220,7 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
          SET current_period_end = current_period_end + INTERVAL '1 month',
              status = 'ACTIVE'
          WHERE id = $1 AND paypal_sub_id = $2`,
-        sub.id, paypalSubId
+        sub.id, billingAgreementId
       )
 
       await tx.$executeRawUnsafe(
@@ -196,7 +230,8 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
         `Subscription renewed: ${sub.plan} (${paidAmount || "unknown"} USD)`,
         JSON.stringify({
           event: "subscription_renewed",
-          paypalSubId,
+          saleId,
+          paypalSubId: billingAgreementId,
           plan: sub.plan,
           amount: paidAmount,
           renewedAt: new Date().toISOString(),
@@ -204,7 +239,7 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
       )
     })
 
-    console.log(`[paypal webhook] Subscription ${paypalSubId} renewed for user ${sub.user_id}`)
+    console.log(`[paypal webhook] Subscription ${billingAgreementId} renewed (sale ${saleId}) for user ${sub.user_id}`)
     return NextResponse.json({ received: true, processed: true, action: "renewed" })
   }
 
@@ -245,7 +280,7 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
 }
 
 async function handleCreditEvent(body: PayPalWebhookEvent) {
-  const resource = body.resource
+  const resource = body.resource!
   if (!resource) {
     return NextResponse.json({ error: "Missing resource" }, { status: 400 })
   }

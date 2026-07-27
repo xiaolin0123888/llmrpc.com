@@ -56,10 +56,10 @@ export default function RegisterClient() {
           <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.6, marginBottom: '24px' }}>
             We've sent a verification link to <strong>{registeredEmail}</strong>. Click the link to verify your email and receive <strong style={{ color: '#2563eb' }}>1,000,000 free credits</strong>.
           </p>
-          <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.6, marginBottom: '24px' }}>
+          <p style={{ fontSize: '12px', color: '#6b71840', lineHeight: 1.6, marginBottom: '24px' }}>
             The verification link expires in 24 hours. If you don't see the email, check your spam folder.
           </p>
-          <div style={{ fontSize: '13px', color: '#6b7280' }}>
+          <div style={{ fontSize: '13px', color: '#6b71840' }}>
             Already verified?{' '}
             <Link href="/login" style={{ color: '#2563eb', fontWeight: 500, textDecoration: 'none' }}>Sign in</Link>
           </div>
@@ -78,7 +78,7 @@ export default function RegisterClient() {
         )}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#111111', marginBottom: '4px' }}>Create your account</div>
-          <div style={{ fontSize: '14px', color: '#666666' }}>Start using 28 AI models today</div>
+          <div style={{ fontSize: '14px', color: '#666666' }}>Start using 184 AI models today</div>
         </div>
         {error && (
           <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', color: '#dc2626', fontSize: '13px', textAlign: 'left' }}>{error}</div>
@@ -98,7 +98,7 @@ export default function RegisterClient() {
           </div>
           <div style={{ marginBottom: '16px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
             <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} style={{ marginTop: '3px', minWidth: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }} />
-            <label style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.5, cursor: 'pointer', textAlign: 'left' }}>
+            <label style={{ fontSize: '13px', color: '#6b71840', lineHeight: 1.5, cursor: 'pointer', textAlign: 'left' }}>
               I agree to the{' '}
               <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>Terms of Service</a>
               {' '}and{' '}
@@ -109,7 +109,7 @@ export default function RegisterClient() {
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
-        <div style={{ fontSize: '13px', color: '#6b7280' }}>
+        <div style={{ fontSize: '13px', color: '#6b71840' }}>
           Already have an account? <Link href="/login" style={{ color: '#2563eb', fontWeight: 500, textDecoration: 'none' }}>Sign in</Link>
         </div>
       </div>

@@ -88,6 +88,9 @@ enum SubStatus {
   PAST_DUE
   CANCELLED
   INCOMPLETE
+  PENDING
+  SUSPENDED
+  EXPIRED
 }
 
 model Transaction {

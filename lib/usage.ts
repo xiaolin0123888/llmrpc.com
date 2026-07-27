@@ -70,7 +70,7 @@ export async function getCurrentPeriodUsageTx(
  */
 export async function getUserPlanName(userId: string): Promise<string> {
   const sub = await getOne(
-    `SELECT plan FROM subscriptions WHERE user_id = $1 AND status = 'ACTIVE' LIMIT 1`,
+    `SELECT plan FROM subscriptions WHERE user_id = $1 AND status = 'ACTIVE' AND current_period_end > NOW() LIMIT 1`,
     [userId]
   )
   return sub?.plan || 'FREE'

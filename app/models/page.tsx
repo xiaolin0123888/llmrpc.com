@@ -40,7 +40,7 @@ export default function ModelsPage() {
                     {provider}
                   </td>
                   <td style={{ padding: '0.6rem 0.5rem', fontFamily: 'monospace', fontSize: '0.85rem', color: '#059669' }}>
-                    1 cr / 1K tk
+                    1 cr / token
                   </td>
                 </tr>
               )
