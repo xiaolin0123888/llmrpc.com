@@ -3,11 +3,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Docs — Quick Start',
-  description: 'Get started with LLMRpc in 2 minutes. One API key, 100+ models. OpenAI-compatible endpoint.',
+  description: 'Get started with LLMRpc in 2 minutes. One API key, 11+ models. OpenAI-compatible endpoint.',
   alternates: { canonical: 'https://llmrpc.com/docs' },
   openGraph: {
     title: 'LLMRpc Docs — Quick Start',
-    description: 'Get started with LLMRpc in 2 minutes. One API key, 100+ models.',
+    description: 'Get started with LLMRpc in 2 minutes. One API key, 11+ models.',
     url: 'https://llmrpc.com/docs',
   },
 }
@@ -29,9 +29,10 @@ const H2 = ({ children }: { children: React.ReactNode }) => (
   </h2>
 )
 
+const S_K = "YOUR_API_KEY"
 const CURL = `curl https://llmrpc.com/v1/chat/completions \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer $LLMRPC_API_KEY" \\
+  -H "Authorization: Bearer ${S_K}" \\
   -d '{
     "model": "deepseek-v4-flash",
     "messages": [{"role": "user", "content": "Hello!"}]
@@ -41,7 +42,7 @@ const PYTHON = `from openai import OpenAI
 
 client = OpenAI(
     base_url="https://llmrpc.com/v1",
-    api_key="your-api-key"
+    api_key="${S_K}"
 )
 
 response = client.chat.completions.create(
@@ -65,22 +66,26 @@ const response = await client.chat.completions.create({
 
 console.log(response.choices[0].message.content)`
 
-const MODELS_LIST = `# Available models — one endpoint, switch by name
-deepseek-v4-pro   # DeepSeek V4 Pro — flagship, best all-around
-deepseek-v4-reason # DeepSeek V4 Pro — deep reasoning mode
-deepseek-v4-flash  # DeepSeek V4 Flash — fast, affordable ($0.20/1M input)
+const MODELS_LIST = `# Available models — one endpoint, switch by model name
+deepseek-v4-pro   # DeepSeek V4 Pro — flagship reasoning
+deepseek-v4-flash  # DeepSeek V4 Flash — fast & affordable
+deepseek-v3       # DeepSeek V3.2 — reliable all-rounder
+deepseek-r1       # DeepSeek R1 — deep reasoning
+glm-5             # GLM-5 — budget-friendly
 glm-5.1           # GLM-5.1 — strong mid-tier
-glm-5.2           # GLM-5.2 — budget-friendly
-deepseek-chat    # DeepSeek V4 Flash — general purpose
-qwen-turbo       # GLM-5.2 — quick, efficient
+qwen3-235b        # Qwen3-235B — flagship Qwen
+qwen3-32b         # Qwen3-32B — balanced
+qwen3.6-27b       # Qwen3.6-27B — fast & capable
+qwen3-coder       # Qwen3-Coder — coding specialist
+kimi-k2.6         # Kimi K2.6 — latest Kimi
 
-# View all models: llmrpc.com/models`
+# View all models and pricing: llmrpc.com/models`
 
 const plans = [
-  { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '4 models', color: '#6b7280' },
-  { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '5 models', color: '#2563eb' },
-  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '6 models', color: '#7c3aed' },
-  { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: '7 models', color: '#059669' },
+  { name: 'Free', price: '$0', quota: '500K tokens/mo', models: '5 models', color: '#6b7280' },
+  { name: 'Basic', price: '$9.99', quota: '500K tokens/mo', models: '6 models', color: '#2563eb' },
+  { name: 'Pro', price: '$49', quota: '20M tokens/mo', models: '10 models', color: '#7c3aed' },
+  { name: 'Enterprise', price: '$99', quota: '50M tokens/mo', models: 'All models', color: '#059669' },
   { name: 'Unlimited', price: '$199', quota: 'Unlimited', models: 'All models', color: '#dc2626' },
 ]
 
