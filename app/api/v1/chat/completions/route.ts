@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { POST as proxyPost } from '@/app/api/proxy/route'
 
-export async function POST(req: NextRequest) {
-  return proxyPost(req)
-}
+// POST /api/v1/chat/completions – Delegates to /api/proxy
+// Using barrel re-export from the proxy route
+export { POST } from '@/app/api/proxy/route'
 
 export async function GET() {
   return NextResponse.json(

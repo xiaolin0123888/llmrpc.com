@@ -3,8 +3,7 @@
  * checks against plan quota, and computes overage charges.
  */
 
-import { getOne, execute, prisma } from '@/lib/db'
-import type { Prisma } from '@prisma/client'
+import { getOne, execute } from '@/lib/db'
 import { renewPeriodIfNeeded } from '@/lib/period'
 import { getPlanQuotaAndOverage } from '@/lib/plans'
 
@@ -20,49 +19,25 @@ export interface UsageResult {
 
 /**
  * Get the billing period start date for a user.
- * Calls renewPeriodIfNeeded which updates the DB if the period has ended.
  */
 export async function getBillingPeriodStart(userId: string): Promise<Date> {
   return renewPeriodIfNeeded(userId)
 }
 
 /**
- * Sum base API_USAGE tokens for a user since their billing period start,
- * EXCLUDING overage charges which are stored as separate transactions.
- * Overage is tracked independently; including it would double-count costs.
+ * Sum total API_USAGE tokens for a user since their billing period start.
  */
 export async function getCurrentPeriodUsage(userId: string): Promise<number> {
   const periodStart = await renewPeriodIfNeeded(userId)
 
   const result: any = await getOne(
-    `SELECT COALESCE(SUM(-amount), 0)::int as total ` +
+    `SELECT COALESCE(SUM(ABS(amount)), 0) as total ` +
     `FROM transactions ` +
-    `WHERE user_id = $1 AND type = 'API_USAGE' AND created_at >= $2 ` +
-    `AND (metadata->>'overage' IS NULL OR NOT (metadata->>'overage')::boolean)`,
-    [userId, periodStart]
+    `WHERE user_id = $1 AND type = 'API_USAGE' AND created_at >= $2`,
+    [userId, periodStart.toISOString()]
   )
 
-  const total = Number(result?.total ?? 0); return isNaN(total) ? 0 : total
-}
-
-/**
- * Same as getCurrentPeriodUsage but runs inside an existing Prisma transaction (tx).
- * Does NOT call renewPeriodIfNeeded — the caller must supply a pre-renewed periodStart.
- */
-export async function getCurrentPeriodUsageTx(
-  tx: Prisma.TransactionClient,
-  userId: string,
-  periodStart: Date
-): Promise<number> {
-  const rows: any = await tx.$queryRawUnsafe(
-    `SELECT COALESCE(SUM(-amount), 0)::int as total ` +
-    `FROM transactions ` +
-    `WHERE user_id = $1 AND type = 'API_USAGE' AND created_at >= $2 ` +
-    `AND (metadata->>'overage' IS NULL OR NOT (metadata->>'overage')::boolean)`,
-    userId, periodStart
-  )
-  const total = Number(rows?.[0]?.total ?? 0)
-  return isNaN(total) ? 0 : total
+  return parseInt(result?.total || '0', 10)
 }
 
 /**
@@ -77,24 +52,10 @@ export async function getUserPlanName(userId: string): Promise<string> {
 }
 
 /**
- * Determine if a token-consuming request is allowed and how to bill it.
- *
- * Returns an UsageResult with:
- * - allowedTokens: tokens the request is permitted to consume
- * - overageCost: USD cost of the NEW overage incurred by this request
- * - isOverQuota: whether user is already over their monthly quota
- * - excessTokens: new tokens exceeding quota (incremental, not cumulative)
- *
- * Core logic (incremental overage):
- * - Overage is calculated only on the portion that crosses the quota line.
- *   If already over quota, only the new request is charged, not the total.
- * - If used + requested <= quota: normal request, no overage
- * - If used < quota but used + requested > quota:
- *     newOverage = (used + requested - quota)
- *     overageCost = newOverage / 1000 * overageRate
- * - If already over quota:
- *     newOverage = requestedTokens (entire request is overage)
- * - Unlimited plan: no quota check, no overage
+ * Check usage against plan quota.
+ * Note: since we now use model-specific credit pricing,
+ * this check is for display/overage purposes only.
+ * The actual credit deduction happens in the proxy route.
  */
 export async function checkUsage(
   userId: string,
@@ -114,55 +75,51 @@ export async function checkUsage(
     }
   }
 
+  const totalUsed = usedTokens + requestedTokens
   const isOverQuota = usedTokens >= quota
-  // Incremental overage: only the portion of this request that exceeds quota
-  const newOverage = Math.max(0, usedTokens + requestedTokens - quota) - Math.max(0, usedTokens - quota)
-  const overageCost = (newOverage / 1000) * overageRate
+  const excessTokens = Math.max(0, totalUsed - quota)
+  const overageCost = (excessTokens / 1000) * overageRate
 
-  // If already over quota and not enough credits to cover this request's overage
-  if (isOverQuota && overageCost > userCredits) {
+  // If already over quota and no credits, reject
+  if (isOverQuota && userCredits <= 0) {
     return {
       usedTokens, quotaTokens: quota, overageRate,
-      isOverQuota: true, excessTokens: newOverage, overageCost,
+      isOverQuota: true, excessTokens, overageCost,
       allowedTokens: 0,
     }
   }
 
   return {
     usedTokens, quotaTokens: quota, overageRate,
-    isOverQuota, excessTokens: newOverage, overageCost,
+    isOverQuota, excessTokens, overageCost,
     allowedTokens: requestedTokens,
   }
 }
 
 /**
- * Record base usage + any overage charge after a proxy request.
- * The overage cost is stored as a negative amount in tokens (so it's visible in history).
+ * Record API usage transaction with credit-based billing info.
  */
 export async function recordUsage(
   userId: string,
-  baseTokens: number,
+  tokenCount: number,
+  creditCost: number,
   overageCost: number,
   overageTokens: number,
   model: string,
   description: string
 ): Promise<void> {
-  const meta = JSON.stringify({ model, event: 'api_usage' })
-  const desc = description || ('API call: ' + model)
+  const meta = JSON.stringify({
+    model,
+    event: 'api_usage',
+    tokens: tokenCount,
+    credits_charged: creditCost,
+    overage_tokens: overageTokens,
+    overage_cost: overageCost,
+  })
 
   await execute(
     'INSERT INTO transactions (user_id, type, amount, description, metadata) ' +
     'VALUES ($1, \'API_USAGE\', $2, $3, $4::jsonb)',
-    [userId, -baseTokens, desc, meta]
+    [userId, -creditCost, description, meta]
   )
-
-  if (overageCost > 0 && overageTokens > 0) {
-    const overageMeta = JSON.stringify({ model, overage: true, overageCost, overageTokens })
-    await execute(
-      'INSERT INTO transactions (user_id, type, amount, description, metadata) ' +
-      'VALUES ($1, \'API_USAGE\', $2, $3, $4::jsonb)',
-      [userId, -Math.round(overageCost * 1000),
-       ('Overage: ' + overageTokens + ' tokens over quota'), overageMeta]
-    )
-  }
 }

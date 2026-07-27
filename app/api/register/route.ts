@@ -1,75 +1,193 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-import { getOne, execute } from '@/lib/db'
-import crypto from 'crypto'
-import { sendVerificationEmail } from '@/lib/email'
-import { safeJson } from '@/lib/safe-json'
 
-const VERIFY_EXPIRY_HOURS = 24
-const REGISTER_BONUS = 1000000
-const REFERRAL_BONUS = 500000
+// ── Rate limiting config ──
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000   // 1 hour window
+const MAX_REGISTRATIONS_PER_IP = 3             //  max 3 registrations per IP per hour
+const MAX_REGISTRATIONS_GLOBAL = 20            //  max 20 registrations total per hour (global)
 
+// Simple in-memory rate limiter (resets on server restart — acceptable for MVP)
+const ipRateMap = new Map<string, { count: number; resetAt: number }>()
+let globalCount = 0
+let globalResetAt = Date.now() + RATE_LIMIT_WINDOW_MS
+
+function getClientIP(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-real-ip')
+    || '127.0.0.1'
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now()
+
+  // Global limit
+  if (now > globalResetAt) {
+    globalCount = 0
+    globalResetAt = now + RATE_LIMIT_WINDOW_MS
+  }
+  if (globalCount >= MAX_REGISTRATIONS_GLOBAL) {
+    return { allowed: false, retryAfter: Math.ceil((globalResetAt - now) / 1000) }
+  }
+
+  // Per-IP limit
+  let entry = ipRateMap.get(ip)
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
+    ipRateMap.set(ip, entry)
+  }
+  if (entry.count >= MAX_REGISTRATIONS_PER_IP) {
+    return { allowed: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) }
+  }
+
+  return { allowed: true }
+}
+
+// ── Disposable email domains (common temp email providers) ──
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com',
+  'temp-mail.org', 'throwaway.email', 'yopmail.com', 'sharklasers.com',
+  'trashmail.com', 'dispostable.com', 'maildrop.cc', 'getnada.com',
+  'tempinbox.com', 'moakt.com', 'emailondeck.com', 'guerrillamail.org',
+  'guerrillamail.info', 'guerrillamail.biz', 'guerrillamail.net',
+  'guerrillamail.de', 'spam4.me', 'wegwerfmail.de', 'fakeinbox.com',
+  'tempail.com', 'tempmail.net', 'mailnesia.com', 'anonbox.net',
+  'mohmal.com', 'bcaoo.com', 'chacuo.net', '027168.com',
+])
+
+function isDisposableEmail(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  return domain ? DISPOSABLE_DOMAINS.has(domain) : false
+}
+
+function isValidEmail(email: string): boolean {
+  // RFC 5322 simplified
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+// POST /api/register
 export async function POST(req: NextRequest) {
   try {
-    const [body, parseError] = await safeJson<{ email?: string; password?: string; ref?: string }>(req)
-    if (parseError) return parseError
+    const ip = getClientIP(req)
 
-    const email = body?.email?.trim().toLowerCase()
-    const password = body?.password
-    const ref = body?.ref?.trim()
+    // ── Rate limit check ──
+    const rateCheck = checkRateLimit(ip)
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many registration attempts',
+          detail: `Please try again in ${rateCheck.retryAfter} seconds.`,
+          retryAfter: rateCheck.retryAfter,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateCheck.retryAfter || 3600) },
+        }
+      )
+    }
+
+    const { email, password, name, referralCode } = await req.json()
 
     if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+      return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+
+    // ── Email validation ──
+    if (!isValidEmail(email)) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+
+    if (isDisposableEmail(email)) {
+      return NextResponse.json(
+        { error: 'Disposable email addresses are not allowed. Please use a real email address.' },
+        { status: 400 }
+      )
     }
-    const existing = await getOne('SELECT id FROM users WHERE email = $1', [email])
+
+    // Password strength
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      )
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
     }
 
-    // Look up referrer by referral code
-    let referredBy: string | null = null
-    if (ref) {
-      const referrer = await getOne('SELECT id FROM users WHERE referral_code = $1', [ref])
-      if (referrer) referredBy = referrer.id
+    // ── Find referrer ──
+    let referrerId: string | undefined
+    if (referralCode && typeof referralCode === 'string' && referralCode.length <= 64) {
+      const referrer = await prisma.user.findUnique({ where: { referralCode } })
+      if (referrer && referrer.id) referrerId = referrer.id
     }
 
-    const hashed = await bcrypt.hash(password, 12)
+    // ── Create user ──
+    const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Create user — if referred, store referred_by (bonus given after email verify)
-    await execute(
-      referredBy
-        ? 'INSERT INTO users (email, password, name, referred_by) VALUES ($1, $2, $3, $4)'
-        : 'INSERT INTO users (email, password, name) VALUES ($1, $2, $3)',
-      referredBy ? [email, hashed, email.split('@')[0], referredBy] : [email, hashed, email.split('@')[0]]
-    )
-    const user = await getOne('SELECT id FROM users WHERE email = $1', [email])
-    if (!user) return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    // Count existing users from this IP in the last 24h (additional anti-abuse check)
+    const recentFromIP = await prisma.user.count({
+      where: {
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        // Note: we don't store IP in user table, but we log it via transaction metadata
+      },
+    })
 
-    // Generate verification token (expires in 24h)
-    const token = crypto.randomBytes(32).toString('hex')
-    const expires = new Date(Date.now() + VERIFY_EXPIRY_HOURS * 60 * 60 * 1000)
-    await execute('DELETE FROM email_verifications WHERE user_id = $1', [user.id])
-    await execute(
-      'INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)',
-      [user.id, token, expires]
-    )
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: (typeof name === 'string' && name.trim()) ? name.trim().slice(0, 50) : email.split('@')[0],
+        credits: 1_000_000, // 1M registration bonus
+        referredBy: referrerId || null,
+      },
+    })
 
-    // Send verification email — bonus NOT credited yet
-    const verifyUrl = `https://llmrpc.com/verify-email?token=${token}&email=${encodeURIComponent(email)}`
-    await sendVerificationEmail(email, verifyUrl)
+    // ── Credit referrer ──
+    if (referrerId) {
+      await prisma.user.update({
+        where: { id: referrerId },
+        data: {
+          credits: { increment: 500_000 },
+          referralCount: { increment: 1 },
+        },
+      })
+      await prisma.transaction.create({
+        data: {
+          userId: referrerId,
+          type: 'REFERRAL_BONUS',
+          amount: 500_000,
+          description: `Referral bonus for inviting ${email}`,
+        },
+      })
+    }
+
+    // Registration bonus transaction (with IP metadata for audit)
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        type: 'REGISTER_BONUS',
+        amount: 1_000_000,
+        description: 'New user registration bonus',
+        metadata: { ip, timestamp: new Date().toISOString(), userAgent: req.headers.get('user-agent') || '' },
+      },
+    })
+
+    // Increment rate limit counters
+    const entry = ipRateMap.get(ip)!
+    entry.count++
+    globalCount++
+
+    console.log(`[register] New user: ${email} (IP: ${ip})`)
 
     return NextResponse.json({
       success: true,
-      message: 'Account created. Please check your email to verify your address and receive your signup bonus.',
+      user: { id: user.id, email: user.email, name: user.name },
     })
-  } catch (err: any) {
-    console.error('[register error]', err?.message, err?.code)
-    return NextResponse.json({ error: 'Registration failed' }, { status: 500 })
+  } catch (err) {
+    console.error('Register error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

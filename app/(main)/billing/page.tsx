@@ -27,7 +27,9 @@ function BillingContent() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [usage, setUsage] = useState<{ used: number; quota: number; daysLeft: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [purchasing, setPurchasing] = useState(false)
   const [paypalLoading, setPaypalLoading] = useState(false)
+  const [subscribeLoading, setSubscribeLoading] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -46,24 +48,68 @@ function BillingContent() {
     }
   }, [])
 
-  // Handle PayPal return
+  const subscribeToPlan = useCallback(async (planName: string) => {
+    setSubscribeLoading(planName)
+    try {
+      const res = await fetch('/api/paypal/create-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planName }),
+      })
+      const data = await res.json()
+      if (data.approveUrl) {
+        sessionStorage.setItem('paypal_sub_plan', planName)
+        window.location.href = data.approveUrl
+      } else if (data.error === 'PayPal subscription not configured for this plan') {
+        showNotification('error', `PayPal subscription for ${planName} is not yet configured. Please contact support.`)
+        setSubscribeLoading(null)
+      } else {
+        showNotification('error', data.error || 'Failed to start subscription.')
+        setSubscribeLoading(null)
+      }
+    } catch {
+      showNotification('error', 'Network error. Please try again.')
+      setSubscribeLoading(null)
+    }
+  }, [showNotification])
+
+  // Handle PayPal return (one-time purchase OR subscription)
   const paypalHandledRef = useRef(false)
 
   useEffect(() => {
-    const status = searchParams.get('paypal')
-    if (paypalHandledRef.current || !status) return
+    if (paypalHandledRef.current) return
 
-    if (status === 'success') {
+    const paypalStatus = searchParams.get('paypal')
+    const paypalSubStatus = searchParams.get('paypal_sub')
+
+    if (paypalSubStatus) {
       paypalHandledRef.current = true
-      const orderId = sessionStorage.getItem('paypal_order_id')
-      if (orderId) {
-        capturePaypalOrder(orderId)
-      } else {
-        window.history.replaceState({}, '', '/billing')
+      if (paypalSubStatus === 'success') {
+        const planName = sessionStorage.getItem('paypal_sub_plan')
+        sessionStorage.removeItem('paypal_sub_plan')
+        showNotification('success', `Subscribed to ${planName || 'plan'}! Your benefits are now active. 🎉`)
+        // Reload plan info
+        fetch('/api/credits').then(r => r.json()).then(d => {
+          if (d.currentPlan) setCurrentPlan(d.currentPlan)
+        }).catch(() => {})
+      } else if (paypalSubStatus === 'cancelled') {
+        showNotification('error', 'Subscription was cancelled.')
       }
-    } else if (status === 'cancelled') {
+      window.history.replaceState({}, '', '/billing')
+      return
+    }
+
+    if (paypalStatus) {
       paypalHandledRef.current = true
-      showNotification('error', 'PayPal payment was cancelled.')
+      if (paypalStatus === 'success') {
+        const orderId = sessionStorage.getItem('paypal_order_id')
+        if (orderId) {
+          sessionStorage.removeItem('paypal_order_id')
+          capturePaypalOrder(orderId)
+        }
+      } else if (paypalStatus === 'cancelled') {
+        showNotification('error', 'PayPal payment was cancelled.')
+      }
       window.history.replaceState({}, '', '/billing')
     }
   }, [searchParams, showNotification])
@@ -78,16 +124,9 @@ function BillingContent() {
       })
       const data = await res.json()
       if (data.success) {
-        sessionStorage.removeItem('paypal_order_id')
-        window.history.replaceState({}, '', '/billing')
         setCredits(data.credits)
         showNotification('success', `Successfully added ${Number(data.tokens).toLocaleString()} credits!`)
       } else {
-        // If already fulfilled, clean up orderId so user doesn't keep retrying
-        if (data.error === 'Already fulfilled') {
-          sessionStorage.removeItem('paypal_order_id')
-          window.history.replaceState({}, '', '/billing')
-        }
         showNotification('error', data.error || 'Payment capture failed.')
       }
     } catch {
@@ -118,6 +157,27 @@ function BillingContent() {
     }
   }, [showNotification])
 
+  const purchaseCreditsDirect = useCallback(async (amount: number) => {
+    setPurchasing(true)
+    try {
+      const res = await fetch('/api/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCredits(data.credits)
+        showNotification('success', `Added ${amount.toLocaleString()} credits!`)
+      } else {
+        showNotification('error', data.error || 'Purchase failed.')
+      }
+    } catch {
+      showNotification('error', 'Network error. Please try again.')
+    }
+    setPurchasing(false)
+  }, [showNotification])
+
   useEffect(() => {
     // Independent fetches so one failure doesn't block the other
     const loadCredits = fetch('/api/credits').then(r => r.json()).catch(() => ({}))
@@ -133,12 +193,12 @@ function BillingContent() {
     })
   }, [])
 
-  const isLoading = paypalLoading
+  const isLoading = purchasing || paypalLoading
 
   // Build display plans
   const displayPlans = [
     { id: 0, name: 'Free', price: 0, monthly_quota: 50000, overage_rate: 0, is_active: true, desc: 'For testing', isFree: true },
-    ...plans.map((p: Plan) => ({ ...p, is_active: true, desc: "" })),
+    ...plans.filter((p: Plan) => p.is_active).map((p: Plan) => ({ ...p, desc: '' })),
   ]
 
   const usagePercent = usage && usage.quota > 0 && isFinite(usage.quota)
@@ -221,6 +281,7 @@ function BillingContent() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
           {displayPlans.map((plan: any) => {
             const isCurrent = plan.name.toUpperCase() === currentPlan.toUpperCase()
+            const loadingPlan = subscribeLoading === plan.name
             return (
               <div
                 key={plan.id || plan.name}
@@ -250,7 +311,7 @@ function BillingContent() {
 
                 <div className="billing-plan-name">{plan.name}</div>
                 <div className="billing-plan-price">
-                  {plan.price === 0 ? 'Free' : `$${plan.price % 1 === 0 ? Number(plan.price).toFixed(0) : Number(plan.price).toFixed(2)}`}
+                  {plan.price === 0 ? 'Free' : `$${Number(plan.price).toFixed(0)}`}
                   {plan.price > 0 && <span>/mo</span>}
                 </div>
                 <div className="billing-plan-quota">{formatQuota(plan.monthly_quota)} / mo</div>
@@ -266,16 +327,37 @@ function BillingContent() {
                 <div style={{ flex: 1 }} />
 
                 <button
-                  disabled
+                  disabled={isCurrent || plan.isFree || loadingPlan}
+                  onClick={() => subscribeToPlan(plan.name)}
                   className={`billing-plan-btn${isCurrent ? ' current' : plan.isFree ? '' : ' active'}`}
-                  style={!isCurrent ? {
+                  style={plan.isFree && !isCurrent ? {
                     background: '#f3f4f6',
                     color: '#d1d5db',
-                    cursor: 'not-allowed',
+                    cursor: 'default',
                   } : {}}
                 >
-                  {isCurrent ? 'Current plan' : plan.isFree ? 'Free' : 'Temporarily unavailable'}
+                  {loadingPlan ? 'Processing...' : isCurrent ? 'Current plan' : plan.isFree ? 'Free' : `Subscribe — $${Number(plan.price).toFixed(0)}`}
                 </button>
+
+                {/* Manage subscription — links to PayPal billing */}
+                {isCurrent && !plan.isFree && (
+                  <button
+                    onClick={() => {
+                      const paypalMode: string = process.env.NEXT_PUBLIC_PAYPAL_MODE || 'sandbox'
+                      const url = paypalMode === 'live'
+                        ? 'https://www.paypal.com/myaccount/autopay/'
+                        : 'https://www.sandbox.paypal.com/myaccount/autopay/'
+                      window.open(url, '_blank')
+                    }}
+                    style={{
+                      fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.5rem',
+                      textAlign: 'center', textDecoration: 'underline',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Manage billing in PayPal →
+                  </button>
+                )}
               </div>
             )
           })}
@@ -306,6 +388,13 @@ function BillingContent() {
                       <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .76-.659h6.155c2.556 0 4.17.558 4.948 2.787.506 1.448.37 3.22-.37 4.545a5.513 5.513 0 0 1-3.037 2.863c-.98.371-2.036.558-3.137.558H8.833a.77.77 0 0 0-.758.658l-1.02 12.88a.64.64 0 0 1-.633.54l-.346.04z"/>
                     </svg>
                     PayPal
+                  </button>
+                  <button
+                    className="billing-pkg-btn direct"
+                    onClick={() => purchaseCreditsDirect(Number(pkg.key.replace('K','000').replace('M','000000')))}
+                    disabled={isLoading}
+                  >
+                    + Direct
                   </button>
                 </div>
               </div>

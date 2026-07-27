@@ -3,23 +3,19 @@ import './globals.css'
 
 const SITE_URL = 'https://llmrpc.com'
 const SITE_NAME = 'LLMRpc'
-const DESCRIPTION =
-  'OpenAI-compatible API gateway. One API key, multiple AI models. Prepaid credits, no per-model billing.'
+const DESCRIPTION = 'One API key for 27+ AI models. OpenAI-compatible, prepaid credits, transparent per-model pricing. DeepSeek, Qwen, GLM, Claude, Gemini, GPT and more.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'LLMRpc — One API Key, Multiple AI Models',
+    default: 'LLMRpc — One API Key, Every AI Model',
     template: '%s | LLMRpc',
   },
   description: DESCRIPTION,
   keywords: [
-    'AI API gateway',
-    'OpenAI compatible API',
-    'LLM API',
-    'AI proxy',
-    'unified AI API',
-    'multi-model API',
+    'AI API gateway', 'OpenAI alternative', 'Claude API', 'GPT API',
+    'AI model relay', 'OpenRouter alternative', 'LLM API', 'AI proxy',
+    'unified AI API', 'multi-model API', 'cheap AI API',
   ],
   authors: [{ name: 'LLMRpc' }],
   creator: 'LLMRpc',
@@ -32,21 +28,33 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
-    title: 'LLMRpc — One API Key, Multiple AI Models',
+    title: 'LLMRpc — One API Key, Every AI Model',
     description: DESCRIPTION,
     url: SITE_URL,
+    images: [
+      {
+        url: `${SITE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'LLMRpc — One API Key, Every AI Model',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'LLMRpc — One API Key, Multiple AI Models',
+    title: 'LLMRpc — One API Key, Every AI Model',
     description: DESCRIPTION,
+    images: [`${SITE_URL}/og-image.png`],
     creator: '@llmrpc',
   },
   alternates: {
-    canonical: SITE_URL,
+    types: {
+      'application/rss+xml': `${SITE_URL}/sitemap.xml`,
+    },
   },
   icons: {
     icon: '/favicon.ico',
+    apple: '/apple-icon.png',
   },
 }
 
@@ -59,15 +67,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',
-              '@type': 'WebSite',
+              '@type': 'SoftwareApplication',
               name: 'LLMRpc',
-              url: SITE_URL,
-              description: DESCRIPTION,
-              potentialAction: {
-                '@type': 'SearchAction',
-                target: `${SITE_URL}/models?q={search_term_string}`,
-                'query-input': 'required name=search_term_string',
+              applicationCategory: 'DeveloperApplication',
+              operatingSystem: 'All',
+              offers: {
+                '@type': 'Offer',
+                price: '0',
+                priceCurrency: 'USD',
+                description: 'Free tier with 500K tokens/month',
               },
+              description: 'One API key for 27+ AI models. OpenAI-compatible API with prepaid credits. DeepSeek, Qwen, GLM, Claude, Gemini, GPT and more.',
+              url: SITE_URL,
             }),
           }}
         />
