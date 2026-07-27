@@ -3,11 +3,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Docs — Quick Start',
-  description: 'Get started with LLMRpc in 2 minutes. One API key, 11+ models. OpenAI-compatible endpoint.',
+  description: 'Get started with LLMRpc in 2 minutes. One API key, 10 models. OpenAI-compatible endpoint.',
   alternates: { canonical: 'https://llmrpc.com/docs' },
   openGraph: {
     title: 'LLMRpc Docs — Quick Start',
-    description: 'Get started with LLMRpc in 2 minutes. One API key, 11+ models.',
+    description: 'Get started with LLMRpc in 2 minutes. One API key, 10 models.',
     url: 'https://llmrpc.com/docs',
   },
 }
@@ -71,12 +71,11 @@ deepseek-v4-pro   # DeepSeek V4 Pro — flagship reasoning
 deepseek-v4-flash  # DeepSeek V4 Flash — fast & affordable
 deepseek-v3       # DeepSeek V3.2 — reliable all-rounder
 deepseek-r1       # DeepSeek R1 — deep reasoning
-glm-5             # GLM-5 — budget-friendly
+glm-5.2           # GLM-5.2 — budget-friendly workhorse
 glm-5.1           # GLM-5.1 — strong mid-tier
-qwen3-235b        # Qwen3-235B — flagship Qwen
 qwen3-32b         # Qwen3-32B — balanced
 qwen3.6-27b       # Qwen3.6-27B — fast & capable
-qwen3-coder       # Qwen3-Coder — coding specialist
+qwen3-coder       # Qwen3-Coder 30B — coding specialist
 kimi-k2.6         # Kimi K2.6 — latest Kimi
 
 # View all models and pricing: llmrpc.com/models`

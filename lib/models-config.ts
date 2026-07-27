@@ -1,6 +1,6 @@
 // Model configuration — unified AI API gateway
-// All model IDs verified against SiliconFlow official Chat API enum (2026-07-27)
-// Source: https://docs.siliconflow.com/en/api-reference/chat-completions/chat-completions
+// All model IDs verified against production server upstream (2026-07-27)
+// Source: https://llmrpc.com/api/models (91 live upstream models)
 
 export const MODEL_MAPPING: Record<string, string> = {
   // DeepSeek
@@ -10,32 +10,33 @@ export const MODEL_MAPPING: Record<string, string> = {
   'deepseek-r1':       'deepseek-ai/DeepSeek-R1',
 
   // GLM
-  'glm-5':   'zai-org/GLM-5',
-  'glm-5.1': 'zai-org/GLM-5.1',
+  'glm-5.2':  'zai-org/GLM-5.2',
+  'glm-5.1':  'Pro/zai-org/GLM-5.1',
 
   // Qwen
-  'qwen3-235b':  'Qwen/Qwen3-235B-A22B',
   'qwen3-32b':   'Qwen/Qwen3-32B',
   'qwen3.6-27b': 'Qwen/Qwen3.6-27B',
-  'qwen3-coder': 'Qwen/Qwen3-Coder-480B-A35B-Instruct',
+  'qwen3-coder': 'Qwen/Qwen3-Coder-30B-A3B-Instruct',
 
   // Kimi
-  'kimi-k2.6': 'moonshotai/Kimi-K2.6',
+  'kimi-k2.6': 'Pro/moonshotai/Kimi-K2.6',
 }
 
-// Pricing: credits per 1K tokens (1 credit ≈ 1 token, \ = 100K credits)
+// Pricing is uniform: 1 credit = 1 token across all models.
+// MODEL_PRICING below is for /models page display only.
+// Actual charges: proxy deducts actual tokens (prompt+completion) from credit balance.
+// $1.00 = 100K credits.
 export const MODEL_PRICING: Record<string, { inputPrice: number; outputPrice: number }> = {
-  'deepseek-v4-pro':   { inputPrice: 0.15, outputPrice: 0.50 },
-  'deepseek-v4-flash': { inputPrice: 0.02, outputPrice: 0.06 },
-  'deepseek-v3':       { inputPrice: 0.03, outputPrice: 0.10 },
-  'deepseek-r1':       { inputPrice: 0.10, outputPrice: 0.40 },
-  'glm-5':             { inputPrice: 0.03, outputPrice: 0.10 },
-  'glm-5.1':           { inputPrice: 0.08, outputPrice: 0.30 },
-  'qwen3-235b':        { inputPrice: 0.10, outputPrice: 0.35 },
-  'qwen3-32b':         { inputPrice: 0.03, outputPrice: 0.10 },
-  'qwen3.6-27b':       { inputPrice: 0.03, outputPrice: 0.10 },
-  'qwen3-coder':       { inputPrice: 0.08, outputPrice: 0.30 },
-  'kimi-k2.6':         { inputPrice: 0.08, outputPrice: 0.30 },
+  'deepseek-v4-pro':   { inputPrice: 1.0, outputPrice: 1.0 },
+  'deepseek-v4-flash': { inputPrice: 1.0, outputPrice: 1.0 },
+  'deepseek-v3':       { inputPrice: 1.0, outputPrice: 1.0 },
+  'deepseek-r1':       { inputPrice: 1.0, outputPrice: 1.0 },
+  'glm-5.2':           { inputPrice: 1.0, outputPrice: 1.0 },
+  'glm-5.1':           { inputPrice: 1.0, outputPrice: 1.0 },
+  'qwen3-32b':         { inputPrice: 1.0, outputPrice: 1.0 },
+  'qwen3.6-27b':       { inputPrice: 1.0, outputPrice: 1.0 },
+  'qwen3-coder':       { inputPrice: 1.0, outputPrice: 1.0 },
+  'kimi-k2.6':         { inputPrice: 1.0, outputPrice: 1.0 },
 }
 
 export function getUserFacingModelId(siliconId: string): string | null {
@@ -46,7 +47,7 @@ export function getUserFacingModelId(siliconId: string): string | null {
 }
 
 export function getModelPrice(modelId: string) {
-  return MODEL_PRICING[modelId] || { inputPrice: 0.5, outputPrice: 1.0 }
+  return MODEL_PRICING[modelId] || { inputPrice: 1.0, outputPrice: 1.0 }
 }
 
 // System prompts — no brand impersonation, just helpful AI behavior
@@ -55,9 +56,8 @@ const MODEL_PERSONAS: Record<string, string> = {
   'deepseek-v4-flash': 'You are a fast, efficient AI assistant powered by DeepSeek V4 Flash. Keep responses concise.',
   'deepseek-v3':       'You are a capable AI assistant powered by DeepSeek V3.2. Provide clear, well-organized responses.',
   'deepseek-r1':       'You are a reasoning-focused AI assistant powered by DeepSeek R1. Think step by step for complex problems.',
-  'glm-5':             'You are a helpful AI assistant powered by GLM-5. Keep answers clear, practical, and efficient.',
+  'glm-5.2':           'You are a helpful AI assistant powered by GLM-5.2. Keep answers clear, practical, and efficient.',
   'glm-5.1':           'You are a capable, balanced AI assistant powered by GLM-5.1. Provide thorough, well-organized responses.',
-  'qwen3-235b':        'You are a powerful AI assistant powered by Qwen3-235B. Provide thorough, accurate responses.',
   'qwen3-32b':         'You are a capable AI assistant powered by Qwen3-32B. Keep responses helpful and concise.',
   'qwen3.6-27b':       'You are a fast, efficient AI assistant powered by Qwen3.6-27B. Provide clear, practical answers.',
   'qwen3-coder':       'You are a coding-focused AI assistant powered by Qwen3-Coder. Write clean, well-documented code.',
@@ -72,9 +72,9 @@ export function injectPersona(modelId: string, messages: any[]): any[] {
 }
 
 export const PLAN_ACCESS: Record<string, string[]> = {
-  'Free':       ['deepseek-v4-flash', 'deepseek-v3', 'glm-5', 'qwen3-32b', 'qwen3.6-27b'],
-  'Basic':      ['deepseek-v4-flash', 'deepseek-v3', 'glm-5', 'glm-5.1', 'qwen3-32b', 'qwen3.6-27b'],
-  'Pro':        ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v3', 'deepseek-r1', 'glm-5', 'glm-5.1', 'qwen3-235b', 'qwen3-32b', 'qwen3.6-27b', 'kimi-k2.6'],
+  'Free':       ['deepseek-v4-flash', 'deepseek-v3', 'glm-5.2', 'qwen3-32b', 'qwen3.6-27b'],
+  'Basic':      ['deepseek-v4-flash', 'deepseek-v3', 'glm-5.2', 'glm-5.1', 'qwen3-32b', 'qwen3.6-27b'],
+  'Pro':        ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v3', 'deepseek-r1', 'glm-5.2', 'glm-5.1', 'qwen3-32b', 'qwen3.6-27b', 'kimi-k2.6'],
   'Enterprise': Object.keys(MODEL_MAPPING),
   'Unlimited':  Object.keys(MODEL_MAPPING),
 }
@@ -87,6 +87,9 @@ export function styleModelFilter(showModel: string, content: string): string {
     filtered = filtered.split(bw).join('')
   }
   filtered = filtered.replace(/\n{3,}/g, '\n\n')
+
+
+
   return filtered.trim()
 }
 

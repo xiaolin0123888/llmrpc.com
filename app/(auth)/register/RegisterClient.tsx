@@ -78,7 +78,7 @@ export default function RegisterClient() {
         )}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#111111', marginBottom: '4px' }}>Create your account</div>
-          <div style={{ fontSize: '14px', color: '#666666' }}>Start using 100+ AI models today</div>
+          <div style={{ fontSize: '14px', color: '#666666' }}>Start using 10 AI models today</div>
         </div>
         {error && (
           <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', color: '#dc2626', fontSize: '13px', textAlign: 'left' }}>{error}</div>

@@ -12,6 +12,7 @@ interface PayPalWebhookEvent {
     plan_id?: string
     custom_id?: string
     subscriber?: { payer_id?: string }
+    billing_agreement_id?: string
     billing_info?: {
       last_payment?: { amount?: { value?: string; currency_code?: string } }
       next_billing_time?: string
@@ -26,7 +27,11 @@ interface PayPalWebhookEvent {
 const CREDIT_EVENT_TYPES = ["PAYMENT.CAPTURE.COMPLETED"]
 const SUBSCRIPTION_EVENT_TYPES = [
   "BILLING.SUBSCRIPTION.ACTIVATED",
-  "BILLING.SUBSCRIPTION.PAYMENT.COMPLETED",
+  "PAYMENT.SALE.COMPLETED",
+  "BILLING.SUBSCRIPTION.CANCELLED",
+  "BILLING.SUBSCRIPTION.SUSPENDED",
+  "BILLING.SUBSCRIPTION.EXPIRED",
+  "BILLING.SUBSCRIPTION.PAYMENT.FAILED",
 ]
 const HANDLED_EVENT_TYPES = [...CREDIT_EVENT_TYPES, ...SUBSCRIPTION_EVENT_TYPES]
 
@@ -158,18 +163,24 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
     return NextResponse.json({ received: true, processed: true, action: "activated" })
   }
 
-  if (eventType === "BILLING.SUBSCRIPTION.PAYMENT.COMPLETED") {
-    // Recurring payment — extend period and record transaction
-    const paidAmount = resource.billing_info?.last_payment?.amount?.value
-    const paidCurrency = resource.billing_info?.last_payment?.amount?.currency_code
+  if (eventType === "PAYMENT.SALE.COMPLETED") {
+    // Subscription recurring payment — extend period by 1 month from current end
+    const paidAmount = resource.amount?.value
+    const paidCurrency = resource.amount?.currency_code
 
     if (paidCurrency && paidCurrency !== "USD") {
       console.error(`[paypal webhook] Unexpected subscription currency: ${paidCurrency}`)
       return NextResponse.json({ error: "Unsupported currency" }, { status: 400 })
     }
 
+    // Verify the sale is linked to this subscription via billing_agreement_id
+    const billingAgreementId = (resource as any)?.billing_agreement_id
+    if (!billingAgreementId || billingAgreementId !== paypalSubId) {
+      console.error(`[paypal webhook] Sale billing_agreement_id mismatch: ${billingAgreementId} vs ${paypalSubId}`)
+      return NextResponse.json({ error: "Billing agreement mismatch" }, { status: 400 })
+    }
+
     await prisma.$transaction(async (tx) => {
-      // Extend the subscription period by 1 month from current end
       await tx.$executeRawUnsafe(
         `UPDATE subscriptions
          SET current_period_end = current_period_end + INTERVAL '1 month',
@@ -178,7 +189,6 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
         sub.id, paypalSubId
       )
 
-      // Record renewal transaction
       await tx.$executeRawUnsafe(
         `INSERT INTO transactions (user_id, type, amount, description, metadata)
          VALUES ($1, 'SUBSCRIPTION', 0, $2, $3::jsonb)`,
@@ -196,6 +206,39 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
 
     console.log(`[paypal webhook] Subscription ${paypalSubId} renewed for user ${sub.user_id}`)
     return NextResponse.json({ received: true, processed: true, action: "renewed" })
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.CANCELLED") {
+    await prisma.$executeRawUnsafe(
+      `UPDATE subscriptions SET status = 'CANCELLED' WHERE id = $1 AND paypal_sub_id = $2`,
+      sub.id, paypalSubId
+    )
+    console.log(`[paypal webhook] Subscription ${paypalSubId} cancelled for user ${sub.user_id}`)
+    return NextResponse.json({ received: true, processed: true, action: "cancelled" })
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.SUSPENDED") {
+    await prisma.$executeRawUnsafe(
+      `UPDATE subscriptions SET status = 'SUSPENDED' WHERE id = $1 AND paypal_sub_id = $2`,
+      sub.id, paypalSubId
+    )
+    console.log(`[paypal webhook] Subscription ${paypalSubId} suspended for user ${sub.user_id}`)
+    return NextResponse.json({ received: true, processed: true, action: "suspended" })
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.EXPIRED") {
+    await prisma.$executeRawUnsafe(
+      `UPDATE subscriptions SET status = 'EXPIRED' WHERE id = $1 AND paypal_sub_id = $2`,
+      sub.id, paypalSubId
+    )
+    console.log(`[paypal webhook] Subscription ${paypalSubId} expired for user ${sub.user_id}`)
+    return NextResponse.json({ received: true, processed: true, action: "expired" })
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.PAYMENT.FAILED") {
+    // Don't cancel immediately — just log. PayPal will retry and eventually cancel.
+    console.error(`[paypal webhook] Subscription ${paypalSubId} payment failed for user ${sub.user_id}`)
+    return NextResponse.json({ received: true, processed: true, action: "payment_failed_logged" })
   }
 
   return NextResponse.json({ received: true, processed: false, reason: "unknown_sub_event" })

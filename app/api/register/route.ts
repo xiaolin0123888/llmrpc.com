@@ -63,11 +63,6 @@ export async function POST(req: NextRequest) {
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
     }
-    const existing = await getOne('SELECT id FROM users WHERE email = $1', [email])
-    if (existing) {
-      return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
-    }
-
     // Look up referrer by referral code
     let referredBy: string | null = null
     if (ref) {
@@ -77,16 +72,26 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 12)
 
-    // Create user with IP stored — bonus given only after email verification
-    await execute(
+    // Atomic INSERT — email is UNIQUE, so duplicate returns null
+    // This eliminates the check-then-insert race condition
+    const inserted = await getOne(
       referredBy
-        ? 'INSERT INTO users (email, password, name, registered_ip, referred_by) VALUES ($1, $2, $3, $4, $5)'
-        : 'INSERT INTO users (email, password, name, registered_ip) VALUES ($1, $2, $3, $4)',
+        ? `INSERT INTO users (email, password, name, registered_ip, referred_by)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (email) DO NOTHING
+           RETURNING id`
+        : `INSERT INTO users (email, password, name, registered_ip)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (email) DO NOTHING
+           RETURNING id`,
       referredBy
         ? [email, hashed, email.split('@')[0], clientIp, referredBy]
         : [email, hashed, email.split('@')[0], clientIp]
     )
-    const user = await getOne('SELECT id FROM users WHERE email = $1', [email])
+    if (!inserted) {
+      return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
+    }
+    const user = inserted
     if (!user) return NextResponse.json({ error: 'Internal error' }, { status: 500 })
 
     // Generate verification token (expires in 24h)
