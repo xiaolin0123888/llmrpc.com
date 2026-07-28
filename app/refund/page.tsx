@@ -5,45 +5,48 @@ export default function RefundPage() {
         Refund Policy
       </h1>
       <div style={{ color: 'var(--text-gray)', lineHeight: 1.8, fontSize: '0.95rem' }}>
-        <p style={{ marginBottom: '1rem' }}>Last updated: May 2026</p>
+        <p style={{ marginBottom: '1rem' }}>Last updated: July 2026</p>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-          1. Eligibility
+          1. Credit Purchases — Non-Refundable
         </h2>
         <p style={{ marginBottom: '1.5rem' }}>
-          Refunds may be considered under the following conditions:
+          All one-time credit purchases are <strong>final and non-refundable</strong>. Credits are
+          immediately available for use and consume upstream API resources with real costs on our side.
+          Once purchased, credits cannot be refunded under any circumstances, including partial or
+          zero usage.
         </p>
-        <ul style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem' }}>
-          <li>
-            Service downtime exceeding 48 consecutive hours affecting your entire subscription
-            period.
-          </li>
-          <li>
-            Technical issues confirmed by our team that prevent you from using the Service.
-          </li>
-        </ul>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-          2. Non-Refundable Cases
+          2. Subscriptions
         </h2>
         <p style={{ marginBottom: '1.5rem' }}>
-          Subscriptions are non-refundable in the following situations:
+          Subscription payments are non-refundable except in cases of confirmed service outage
+          exceeding 48 consecutive hours, or technical issues confirmed by our team that prevent
+          you from using the Service for the majority of the billing period.
         </p>
+        <p style={{ marginBottom: '1.5rem' }}>
+          Subscription refunds are handled on a case-by-case basis and, if approved, apply
+          only to the most recent billing period.
+        </p>
+
+        <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+          3. Non-Refundable Cases
+        </h2>
         <ul style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem' }}>
-          <li>Partial usage of the token quota, even if unused.</li>
-          <li>
-            User error, including but not limited to incorrect API key usage or misuse of the
-            Service.
-          </li>
+          <li>All credit (one-time) purchases — no exceptions.</li>
+          <li>Partial usage of a subscription billing period.</li>
+          <li>User error, including incorrect API key usage or misuse of the Service.</li>
           <li>Termination of account due to violation of Terms of Service.</li>
         </ul>
 
         <h2 style={{ color: 'var(--text-dark)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-          3. How to Request a Refund
+          4. Contact
         </h2>
         <p>
-          To request a refund, contact us at support@llmrpc.com with your account details and reason
-          for the request. We will review your case within 3&ndash;5 business days.
+          For subscription-related refund inquiries, contact us at support@llmrpc.com with your
+          account details and reason for the request. We will review your case within 3–5
+          business days. Credit purchase refund requests will not be considered.
         </p>
       </div>
     </div>
