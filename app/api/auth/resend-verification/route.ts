@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getOne, execute } from '@/lib/db'
+import { getOne, prisma } from '@/lib/db'
 import crypto from 'crypto'
 import { sendVerificationEmail } from '@/lib/email'
 
 const VERIFY_EXPIRY_HOURS = 24
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000  // 5 min between resend requests
 
-// In-memory rate limit (per email). Server restart clears it — acceptable for this endpoint.
+// In-memory rate limit (per email).
+// NOTE: single-process only. For multi-process deployments, replace with Redis or DB-based rate limit.
 const resendCooldown = new Map<string, number>()
+
+// Periodic cleanup: purge stale cooldown entries every ~100 requests
+let cleanupCounter = 0
+function maybeCleanupCooldown(now: number) {
+  cleanupCounter++
+  if (cleanupCounter % 100 !== 0) return
+  for (const [key, ts] of resendCooldown) {
+    if (now - ts > RATE_LIMIT_WINDOW_MS) resendCooldown.delete(key)
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,16 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
     }
 
-    // Rate limit
-    const lastSent = resendCooldown.get(email) || 0
     const now = Date.now()
-    if (now - lastSent < RATE_LIMIT_WINDOW_MS) {
-      return NextResponse.json(
-        { error: 'Please wait before requesting another verification email' },
-        { status: 429 }
-      )
-    }
-    resendCooldown.set(email, now)
 
     // Don't reveal whether email is registered — same response either way
     const user = await getOne('SELECT id FROM users WHERE email = $1', [email])
@@ -43,23 +45,36 @@ export async function POST(req: NextRequest) {
     // Check if already verified
     const bonusTx = await getOne(
       "SELECT id FROM transactions WHERE user_id = $1 AND type = 'REGISTER_BONUS' LIMIT 1",
-      user.id
+      [user.id]
     )
     if (bonusTx) {
       // Same response — don't leak that email is verified
       return NextResponse.json({ success: true, message: 'If the email is registered and unverified, a verification link has been sent.' })
     }
 
-    // Generate new token FIRST, then replace old one atomically
+    // Rate limit — only for valid, unverified registered users (after DB queries above)
+    const lastSent = resendCooldown.get(email) || 0
+    if (now - lastSent < RATE_LIMIT_WINDOW_MS) {
+      return NextResponse.json(
+        { error: 'Please wait before requesting another verification email' },
+        { status: 429 }
+      )
+    }
+    resendCooldown.set(email, now)
+    maybeCleanupCooldown(now)
+
+    // Generate new token
     const token = crypto.randomBytes(32).toString('hex')
     const expires = new Date(Date.now() + VERIFY_EXPIRY_HOURS * 60 * 60 * 1000)
 
-    // Replace old token with new one in a single transaction
-    await execute('DELETE FROM email_verifications WHERE user_id = $1', [user.id])
-    await execute(
-      'INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)',
-      [user.id, token, expires]
-    )
+    // Atomically replace old token with new one in a single transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('DELETE FROM email_verifications WHERE user_id = $1', user.id)
+      await tx.$executeRawUnsafe(
+        'INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)',
+        user.id, token, expires
+      )
+    })
 
     // Send email AFTER token is saved — if email fails, new token is still valid
     const verifyUrl = `https://llmrpc.com/verify-email?token=${token}&email=${encodeURIComponent(email)}`

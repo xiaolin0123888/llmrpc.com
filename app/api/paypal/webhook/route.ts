@@ -260,41 +260,70 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
     const saleId = resource.id!
     const billingAgreementId: string | undefined = (resource as any)?.billing_agreement_id
     if (!billingAgreementId) return NextResponse.json({ received: true, processed: false, reason: "no_billing_agreement" })
-    const sub = await getOne(`SELECT * FROM subscriptions WHERE paypal_sub_id = $1`, [billingAgreementId])
-    if (!sub) return NextResponse.json({ error: "Subscription not found" }, { status: 404 })
-    // Subscription payment was refunded or reversed — revoke the period extension.
-    // Find the renewal transaction to determine how much time was added.
-    const renewalTx: any = await getOne(
-      `SELECT id, metadata FROM transactions
-       WHERE type = 'SUBSCRIPTION'
-         AND metadata::jsonb->>'saleId' = $1
-       ORDER BY created_at DESC LIMIT 1`,
-      [saleId]
-    )
-    if (!renewalTx) {
-      console.log(`[paypal webhook] No renewal found for refunded sale ${saleId}`)
-      return NextResponse.json({ received: true, processed: false, reason: "no_renewal_found" })
+
+    // Atomic: lock subscription + renewal tx, check dedup, roll back period, mark refunded.
+    // All in ONE transaction with FOR UPDATE to prevent concurrent/double refunds.
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Lock subscription row
+        const subRows: any[] = await tx.$queryRawUnsafe(
+          `SELECT * FROM subscriptions WHERE paypal_sub_id = $1 FOR UPDATE`,
+          billingAgreementId
+        )
+        if (!subRows.length) {
+          console.error(`[paypal webhook] Subscription ${billingAgreementId} not found for refund`)
+          return
+        }
+        const sub = subRows[0]
+
+        // Find the renewal transaction
+        const renewalRows: any[] = await tx.$queryRawUnsafe(
+          `SELECT id, metadata FROM transactions
+           WHERE type = 'SUBSCRIPTION'
+             AND metadata::jsonb->>'saleId' = $1
+           ORDER BY created_at DESC LIMIT 1
+           FOR UPDATE`,
+          saleId
+        )
+        if (!renewalRows.length) {
+          console.log(`[paypal webhook] No renewal found for refunded sale ${saleId}`)
+          return
+        }
+        const renewalTx = renewalRows[0]
+
+        // Dedup: check if already refunded
+        const meta = typeof renewalTx.metadata === 'string' ? JSON.parse(renewalTx.metadata) : renewalTx.metadata
+        if (meta?.refunded) {
+          console.log(`[paypal webhook] Renewal tx ${renewalTx.id} already refunded, skipping`)
+          return
+        }
+
+        // Roll back one month from period end
+        await tx.$executeRawUnsafe(
+          `UPDATE subscriptions
+           SET current_period_end = current_period_end - INTERVAL '1 month'
+           WHERE id = $1
+             AND current_period_end > NOW()`,
+          sub.id
+        )
+
+        // Mark the renewal transaction as refunded (parameterized, no string interpolation)
+        const refundMeta = JSON.stringify({ refunded: true, refundedAt: new Date().toISOString() })
+        await tx.$executeRawUnsafe(
+          `UPDATE transactions
+           SET metadata = metadata::jsonb || $1::jsonb
+           WHERE id = $2`,
+          refundMeta, renewalTx.id
+        )
+
+        console.log(`[paypal webhook] Refunded sale ${saleId}, rolled back subscription ${billingAgreementId}`)
+      })
+
+      return NextResponse.json({ received: true, processed: true, action: "refunded" })
+    } catch (err: any) {
+      console.error(`[paypal webhook] SALE refund tx failed:`, err?.message)
+      return NextResponse.json({ error: "Internal error" }, { status: 500 })
     }
-
-    // Roll back one month from period end
-    await prisma.$executeRawUnsafe(
-      `UPDATE subscriptions
-       SET current_period_end = current_period_end - INTERVAL '1 month'
-       WHERE id = $1 AND paypal_sub_id = $2
-         AND current_period_end > NOW()`,
-      sub.id, billingAgreementId
-    )
-
-    // Mark the renewal transaction as refunded
-    await prisma.$executeRawUnsafe(
-      `UPDATE transactions
-       SET metadata = metadata::jsonb || '{"refunded": true, "refundedAt": "${new Date().toISOString()}"}'::jsonb
-       WHERE id = $1`,
-      renewalTx.id
-    )
-
-    console.log(`[paypal webhook] Refunded sale ${saleId}, rolled back subscription ${billingAgreementId}`)
-    return NextResponse.json({ received: true, processed: true, action: "refunded" })
   }
 
   if (eventType === "BILLING.SUBSCRIPTION.CANCELLED") {
@@ -352,8 +381,9 @@ async function handleCreditEvent(body: PayPalWebhookEvent) {
   if (captureStatus === "REFUNDED" || captureStatus === "REVERSED") {
     // Credit purchase refunded — atomic: revoke credits + mark refunded in one tx.
     // FOR UPDATE prevents concurrent refund processing.
+    // If user spent credits, deduct remaining balance and record the shortfall.
     const refundedAt = new Date().toISOString()
-    const refundMeta = JSON.stringify({ status: "refunded", refundedAt })
+    let action = "credits_revoked"
 
     await prisma.$transaction(async (tx) => {
       const txRows: any[] = await tx.$queryRawUnsafe(
@@ -376,26 +406,49 @@ async function handleCreditEvent(body: PayPalWebhookEvent) {
       const tokenAmount = Number(meta?.tokens) || 0
       if (tokenAmount <= 0) return
 
-      // Revoke credits (WHERE credits >= amount prevents negative balance)
-      const revoked = await tx.$executeRawUnsafe(
-        `UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1`,
-        tokenAmount, creditedTx.user_id
+      // Lock user row and read current balance
+      const userRows: any[] = await tx.$queryRawUnsafe(
+        `SELECT credits FROM users WHERE id = $1 FOR UPDATE`,
+        creditedTx.user_id
       )
-      if (revoked === 0) {
-        console.error(`[paypal webhook] Insufficient credits to revoke ${tokenAmount} from user ${creditedTx.user_id}`)
-        // Still mark as refunded — PayPal has already processed the refund
+      const currentBalance: number = userRows.length ? Number(userRows[0].credits) : 0
+
+      const deducted = Math.min(tokenAmount, currentBalance)
+      const shortfall = tokenAmount - deducted
+
+      if (deducted > 0) {
+        await tx.$executeRawUnsafe(
+          `UPDATE users SET credits = credits - $1 WHERE id = $2`,
+          deducted, creditedTx.user_id
+        )
       }
 
-      // Mark transaction as refunded
+      if (shortfall > 0) {
+        action = "credits_partial_refunded"
+        console.error(
+          `[paypal webhook] Refund shortfall: user ${creditedTx.user_id} ` +
+          `owed ${tokenAmount}, balance was ${currentBalance}, shortfall ${shortfall}`
+        )
+      }
+
+      const refundMeta = JSON.stringify({
+        status: shortfall > 0 ? "partial_refunded" : "refunded",
+        refundedAt,
+        deducted,
+        shortfall,
+        tokenAmount,
+      })
+
+      // Mark transaction as refunded (or partial)
       await tx.$executeRawUnsafe(
         `UPDATE transactions SET metadata = metadata::jsonb || $1::jsonb WHERE id = $2`,
         refundMeta, creditedTx.id
       )
 
-      console.log(`[paypal webhook] Revoked ${tokenAmount} credits from user ${creditedTx.user_id} for refunded capture ${captureId}`)
+      console.log(`[paypal webhook] Deducted ${deducted}/${tokenAmount} credits, shortfall ${shortfall}, user ${creditedTx.user_id}`)
     })
 
-    return NextResponse.json({ received: true, processed: true, action: "credits_revoked" })
+    return NextResponse.json({ received: true, processed: true, action })
   }
 
   if (captureStatus !== "COMPLETED") {
