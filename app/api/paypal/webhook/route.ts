@@ -144,11 +144,14 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
     }
 
     await prisma.$transaction(async (tx) => {
+      // Activation: only set status and period_start.
+      // period_end was already set at creation time (first paid period).
+      // Do NOT extend here — the first SALE.COMPLETED will follow shortly
+      // and that's the one that pays for this period.
       await tx.$executeRawUnsafe(
         `UPDATE subscriptions
          SET status = 'ACTIVE',
-             current_period_start = NOW(),
-             current_period_end = NOW() + INTERVAL '1 month'
+             current_period_start = NOW()
          WHERE id = $1 AND paypal_sub_id = $2`,
         sub.id, paypalSubId
       )
@@ -224,16 +227,34 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
           return  // skip rest of tx
         }
 
-        // Step 2: Extend subscription period
-        await tx.$executeRawUnsafe(
-          `UPDATE subscriptions
-           SET current_period_end = current_period_end + INTERVAL '1 month',
-               status = 'ACTIVE'
-           WHERE id = $1 AND paypal_sub_id = $2`,
-          sub.id, billingAgreementId
+        // Step 2: Re-read subscription WITH lock to get current status
+        const lockedSubRows: any[] = await tx.$queryRawUnsafe(
+          `SELECT status FROM subscriptions WHERE id = $1 FOR UPDATE`,
+          sub.id
         )
+        const currentStatus: string = lockedSubRows.length ? lockedSubRows[0].status : ''
 
-        // Step 3: Record transaction
+        // Step 3: Extend period ONLY for renewals.
+        // If sub was not ACTIVE yet, this is the first payment (period already set at creation).
+        // If sub was already ACTIVE, this is a renewal — add one month.
+        if (currentStatus === 'ACTIVE') {
+          await tx.$executeRawUnsafe(
+            `UPDATE subscriptions
+             SET current_period_end = current_period_end + INTERVAL '1 month'
+             WHERE id = $1 AND paypal_sub_id = $2`,
+            sub.id, billingAgreementId
+          )
+        } else {
+          // First payment — just ensure status is ACTIVE (period was set at creation)
+          await tx.$executeRawUnsafe(
+            `UPDATE subscriptions
+             SET status = 'ACTIVE'
+             WHERE id = $1 AND paypal_sub_id = $2`,
+            sub.id, billingAgreementId
+          )
+        }
+
+        // Step 4: Record transaction
         await tx.$executeRawUnsafe(
           `INSERT INTO transactions (user_id, type, amount, description, metadata)
            VALUES ($1, 'SUBSCRIPTION', 0, $2, $3::jsonb)`,
@@ -425,9 +446,16 @@ async function handleCreditEvent(body: PayPalWebhookEvent) {
 
       if (shortfall > 0) {
         action = "credits_partial_refunded"
+        // Push balance negative — user consumed credits before refunding,
+        // they must repay before using the service again.
+        await tx.$executeRawUnsafe(
+          `UPDATE users SET credits = credits - $1 WHERE id = $2`,
+          shortfall, creditedTx.user_id
+        )
         console.error(
           `[paypal webhook] Refund shortfall: user ${creditedTx.user_id} ` +
-          `owed ${tokenAmount}, balance was ${currentBalance}, shortfall ${shortfall}`
+          `owed ${tokenAmount}, balance was ${currentBalance}, shortfall ${shortfall}, ` +
+          `balance now negative`
         )
       }
 
