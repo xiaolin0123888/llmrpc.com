@@ -24,6 +24,9 @@ interface PayPalWebhookEvent {
     seller_receivable_breakdown?: {
       total_refunded_amount?: { value?: string; currency_code?: string }
     }
+    seller_payable_breakdown?: {
+      total_refunded_amount?: { value?: string; currency_code?: string }
+    }
     links?: Array<{ rel?: string; href?: string; method?: string }>
   }
 }
@@ -396,11 +399,10 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
 /**
  * Handle credit refund notifications (PAYMENT.CAPTURE.REFUNDED / REVERSED).
  *
- * Both Capture (status REFUNDED/PARTIALLY_REFUNDED) and Refund (status
- * COMPLETED) resources carry seller_receivable_breakdown.total_refunded_amount
- * — the cumulative refund total. Using this single source of truth eliminates
- * repeat-deduction risk: if PayPal re-delivers the same notification, the
- * breakdown is unchanged → delta = 0 → idempotent 200.
+ * Cumulative refund amount comes from seller_payable_breakdown (Refund
+ * resource) or seller_receivable_breakdown (Capture resource). Using this
+ * single source of truth eliminates repeat-deduction risk: if PayPal
+ * re-delivers the same notification, the breakdown is unchanged → delta = 0.
  *
  * For Refund resources the capture ID is extracted from links[rel=up].
  */
@@ -472,14 +474,16 @@ async function handleCreditRefund(body: PayPalWebhookEvent) {
       const prevCumulative = Number(meta?.cumulativeRefundTokens || 0)
 
       // Both Capture and Refund resources expose the cumulative refund via
-      // seller_receivable_breakdown.total_refunded_amount — the single source
-      // of truth from PayPal. No manual accumulation, no repeat-deduction risk:
-      // if PayPal re-delivers the same notification the breakdown is unchanged
-      // → delta = 0 → returns 200.
+      // total_refunded_amount, but on different parent objects:
+      //   Capture → seller_receivable_breakdown
+      //   Refund  → seller_payable_breakdown
+      // Try payable first (Refund resource), fall back to receivable (Capture).
       let cumulativeRefundTokens: number
       let cumulativeRefundUsd: number
 
-      const breakdownUsd = resource.seller_receivable_breakdown?.total_refunded_amount?.value
+      const breakdownUsd =
+        resource.seller_payable_breakdown?.total_refunded_amount?.value ||
+        resource.seller_receivable_breakdown?.total_refunded_amount?.value
       if (breakdownUsd) {
         cumulativeRefundUsd = parseFloat(breakdownUsd)
         cumulativeRefundTokens = originalPrice > 0
