@@ -21,6 +21,10 @@ interface PayPalWebhookEvent {
     supplementary_data?: {
       related_ids?: { order_id?: string }
     }
+    seller_receivable_breakdown?: {
+      total_refunded_amount?: { value?: string; currency_code?: string }
+    }
+    links?: Array<{ rel?: string; href?: string; method?: string }>
   }
 }
 
@@ -389,12 +393,237 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
   return NextResponse.json({ received: true, processed: false, reason: "unknown_sub_event" })
 }
 
+/**
+ * Handle credit refund notifications (PAYMENT.CAPTURE.REFUNDED / REVERSED).
+ *
+ * PayPal can deliver this with either:
+ *   a) Capture resource → status REFUNDED/PARTIALLY_REFUNDED,
+ *      amount = original (unchanged),
+ *      seller_receivable_breakdown.total_refunded_amount = cumulative refund
+ *   b) Refund resource  → status COMPLETED,
+ *      amount = this single refund,
+ *      links[rel=up] → parent capture
+ */
+async function handleCreditRefund(body: PayPalWebhookEvent) {
+  const resource = body.resource!
+
+  const resourceStatus = resource.status
+  const isCaptureResource =
+    resourceStatus === "REFUNDED" ||
+    resourceStatus === "PARTIALLY_REFUNDED" ||
+    resourceStatus === "REVERSED"
+  const isRefundResource = resourceStatus === "COMPLETED"
+
+  // Extract capture ID from either resource type
+  let captureId: string | undefined
+  if (isCaptureResource) {
+    captureId = resource.id
+  } else if (isRefundResource) {
+    const upLink = resource.links?.find(l => l.rel === "up")
+    if (upLink?.href) {
+      captureId = upLink.href.split("/").pop()
+    }
+  }
+
+  if (!captureId) {
+    console.error(`[paypal webhook] Cannot determine capture ID for refund event ${body.id}`)
+    return NextResponse.json({ error: "Cannot determine capture ID" }, { status: 400 })
+  }
+
+  const refundedAt = new Date().toISOString()
+  let processed = false
+  let action = "credits_revoked"
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const txRows: any[] = await tx.$queryRawUnsafe(
+        `SELECT * FROM transactions
+         WHERE type = 'PURCHASE'
+           AND (metadata::jsonb->>'paypalCaptureId' = $1
+                OR metadata::jsonb->>'orderId' = $1)
+         ORDER BY created_at DESC LIMIT 1
+         FOR UPDATE`,
+        captureId
+      )
+      if (!txRows.length) {
+        console.log(`[paypal webhook] No purchase tx for capture ${captureId} — will retry`)
+        return
+      }
+
+      const creditedTx = txRows[0]
+      const meta = typeof creditedTx.metadata === 'string'
+        ? JSON.parse(creditedTx.metadata)
+        : creditedTx.metadata
+
+      if (meta?.status !== 'completed') {
+        console.log(`[paypal webhook] Tx ${creditedTx.id} not completed (status=${meta?.status}), skipping`)
+        processed = true
+        return
+      }
+
+      const tokenAmount = Number(meta?.tokens) || 0
+      if (tokenAmount <= 0) {
+        console.log(`[paypal webhook] Tx ${creditedTx.id} tokenAmount=${tokenAmount}, skipping`)
+        processed = true
+        return
+      }
+
+      const originalPrice = parseFloat(meta?.price || "0")
+      const prevCumulative = Number(meta?.cumulativeRefundTokens || 0)
+      const prevCumulativeUsd = Number(meta?.cumulativeRefundUsd || 0)
+
+      // Compute cumulative refund in both USD and tokens
+      let cumulativeRefundTokens: number
+      let cumulativeRefundUsd: number
+
+      if (isCaptureResource) {
+        // Capture → use seller_receivable_breakdown.total_refunded_amount
+        // (the cumulative total across all refunds on this capture)
+        const breakdownUsd = resource.seller_receivable_breakdown?.total_refunded_amount?.value
+        if (breakdownUsd) {
+          cumulativeRefundUsd = parseFloat(breakdownUsd)
+          cumulativeRefundTokens = originalPrice > 0
+            ? Math.round(tokenAmount * cumulativeRefundUsd / originalPrice)
+            : 0
+          console.log(
+            `[paypal webhook] Capture refund: totalRefunded=$${cumulativeRefundUsd.toFixed(2)} ` +
+            `→ ${cumulativeRefundTokens}/${tokenAmount} credits`
+          )
+        } else {
+          // No breakdown — treat as full refund
+          cumulativeRefundTokens = tokenAmount
+          cumulativeRefundUsd = originalPrice
+          console.log(
+            `[paypal webhook] Capture refund (no breakdown): deducting full ${tokenAmount} credits`
+          )
+        }
+      } else {
+        // Refund resource → resource.amount IS this single refund amount
+        const thisRefundUsd = parseFloat(resource.amount?.value || "0")
+        if (thisRefundUsd <= 0) {
+          console.log(`[paypal webhook] Refund resource: amount=$${thisRefundUsd} ≤ 0, skipping`)
+          processed = true
+          return
+        }
+        // Accumulate with previous
+        cumulativeRefundUsd = prevCumulativeUsd + thisRefundUsd
+        cumulativeRefundTokens = originalPrice > 0
+          ? Math.round(tokenAmount * cumulativeRefundUsd / originalPrice)
+          : 0
+        console.log(
+          `[paypal webhook] Refund resource: thisRefund=$${thisRefundUsd.toFixed(2)}, ` +
+          `cumulative=$${cumulativeRefundUsd.toFixed(2)} → ${cumulativeRefundTokens}/${tokenAmount} credits`
+        )
+      }
+
+      // Cap at tokenAmount / originalPrice
+      cumulativeRefundTokens = Math.min(cumulativeRefundTokens, tokenAmount)
+      cumulativeRefundUsd = Math.min(cumulativeRefundUsd, originalPrice)
+
+      if (resourceStatus === "PARTIALLY_REFUNDED" || cumulativeRefundTokens < tokenAmount) {
+        action = "credits_partially_refunded"
+      }
+
+      // Only deduct the delta
+      const deltaTokens = cumulativeRefundTokens - prevCumulative
+      if (deltaTokens <= 0) {
+        console.log(
+          `[paypal webhook] No new refund delta: cumulative=${cumulativeRefundTokens}, ` +
+          `prevCumulative=${prevCumulative} — already handled`
+        )
+        processed = true
+        return
+      }
+
+      const userRows: any[] = await tx.$queryRawUnsafe(
+        `SELECT credits FROM users WHERE id = $1 FOR UPDATE`,
+        creditedTx.user_id
+      )
+      const currentBalance: number = userRows.length ? Number(userRows[0].credits) : 0
+
+      await tx.$executeRawUnsafe(
+        `UPDATE users SET credits = credits - $1 WHERE id = $2`,
+        deltaTokens, creditedTx.user_id
+      )
+
+      const deducedFromPositive = Math.max(0, Math.min(deltaTokens, currentBalance))
+      const pushedNegative = deltaTokens - deducedFromPositive
+
+      // || merge — preserves original keys like status='completed'
+      const refundMeta = JSON.stringify({
+        refunded: true,
+        lastRefundedAt: refundedAt,
+        cumulativeRefundTokens,
+        cumulativeRefundUsd,
+        prevCumulativeRefundTokens: prevCumulative,
+        deltaTokens,
+        deducedFromPositive,
+        pushedNegative,
+        resourceStatus,
+        refundEventId: body.id,
+      })
+      await tx.$executeRawUnsafe(
+        `UPDATE transactions SET metadata = metadata::jsonb || $1::jsonb WHERE id = $2`,
+        refundMeta, creditedTx.id
+      )
+
+      processed = true
+
+      if (pushedNegative > 0) {
+        console.error(
+          `[paypal webhook] Refund shortfall: user ${creditedTx.user_id} ` +
+          `delta=${deltaTokens}, balance was ${currentBalance}, ` +
+          `${pushedNegative} pushed below zero (cumulative=${cumulativeRefundTokens}/${tokenAmount})`
+        )
+      } else {
+        console.log(
+          `[paypal webhook] Deducted delta=${deltaTokens} credits ` +
+          `(cumulative=${cumulativeRefundTokens}/${tokenAmount}), ` +
+          `user ${creditedTx.user_id}`
+        )
+      }
+    })
+  } catch (err: any) {
+    console.error(`[paypal webhook] Credit refund tx failed:`, err?.message)
+    return NextResponse.json({ error: "Internal error" }, { status: 500 })
+  }
+
+  if (!processed) {
+    console.error(
+      `[paypal webhook] Credit refund NOT processed for capture ${captureId} — will retry`
+    )
+    return NextResponse.json(
+      { error: "No matching purchase found for refund" },
+      { status: 404 }
+    )
+  }
+
+  return NextResponse.json({ received: true, processed: true, action })
+}
+
 async function handleCreditEvent(body: PayPalWebhookEvent) {
   const resource = body.resource!
+  const eventType = body.event_type!
   if (!resource) {
     return NextResponse.json({ error: "Missing resource" }, { status: 400 })
   }
 
+  // ── Refund notification ──
+  // PayPal can deliver PAYMENT.CAPTURE.REFUNDED with either:
+  //   a) Capture resource → status REFUNDED/PARTIALLY_REFUNDED,
+  //      amount = original (unchanged),
+  //      seller_receivable_breakdown.total_refunded_amount = cumulative refund
+  //   b) Refund resource → status COMPLETED, amount = this single refund,
+  //      links[rel=up] → parent capture
+  // Check event_type so case (b) doesn't fall through to the COMPLETED credit path.
+  const isRefundEvent =
+    eventType === "PAYMENT.CAPTURE.REFUNDED" || eventType === "PAYMENT.CAPTURE.REVERSED"
+
+  if (isRefundEvent) {
+    return handleCreditRefund(body)
+  }
+
+  // ── Completion (credit the user) ──
   const captureId = resource.id
   const captureStatus = resource.status
   const capturedAmount = resource.amount?.value
@@ -403,175 +632,6 @@ async function handleCreditEvent(body: PayPalWebhookEvent) {
   if (!captureId || !capturedAmount || !capturedCurrency) {
     console.error("[paypal webhook] Missing capture details", { captureId, capturedAmount, capturedCurrency })
     return NextResponse.json({ error: "Incomplete capture data" }, { status: 400 })
-  }
-
-  if (captureStatus === "REFUNDED" || captureStatus === "REVERSED" || captureStatus === "PARTIALLY_REFUNDED") {
-    // Credit purchase refunded — atomic: revoke credits + mark refunded in one tx.
-    // FOR UPDATE prevents concurrent refund processing.
-    //
-    // Deduction uses a single SQL `credits = credits - deltaTokens` so it
-    // works correctly even when balance is already negative.
-    //
-    // Cumulative tracking in tx metadata handles:
-    //  - repeat webhook deliveries (delta=0 → return 200, no retry)
-    //  - multiple partial refunds on the same capture (delta = new − old)
-    const refundedAt = new Date().toISOString()
-    let processed = false
-    let action = "credits_revoked"
-
-    try {
-      await prisma.$transaction(async (tx) => {
-        // Step 1: Find the purchase tx — no status filter, so we can find it
-        // again after a previous refund already modified metadata.
-        const txRows: any[] = await tx.$queryRawUnsafe(
-          `SELECT * FROM transactions
-           WHERE type = 'PURCHASE'
-             AND (metadata::jsonb->>'paypalCaptureId' = $1
-                  OR metadata::jsonb->>'orderId' = $1)
-           ORDER BY created_at DESC LIMIT 1
-           FOR UPDATE`,
-          captureId
-        )
-        if (!txRows.length) {
-          // Webhook may have arrived before the COMPLETED handler finished.
-          // Return 404 so PayPal retries.
-          console.log(`[paypal webhook] No purchase tx for capture ${captureId} — will retry`)
-          return
-        }
-
-        const creditedTx = txRows[0]
-        const meta = typeof creditedTx.metadata === 'string'
-          ? JSON.parse(creditedTx.metadata)
-          : creditedTx.metadata
-
-        // Step 2: Only refund completed purchases (credits were actually given)
-        if (meta?.status !== 'completed') {
-          console.log(`[paypal webhook] Tx ${creditedTx.id} not completed (status=${meta?.status}), nothing to refund`)
-          processed = true
-          return
-        }
-
-        const tokenAmount = Number(meta?.tokens) || 0
-        if (tokenAmount <= 0) {
-          console.log(`[paypal webhook] Tx ${creditedTx.id} tokenAmount=${tokenAmount}, nothing to refund`)
-          processed = true
-          return
-        }
-
-        // Step 3: Compute cumulative refund (total across all partial refunds)
-        const prevCumulative = Number(meta?.cumulativeRefundTokens || 0)
-        let cumulativeRefundTokens: number
-
-        if (captureStatus === "PARTIALLY_REFUNDED") {
-          // On a PARTIALLY_REFUNDED capture, resource.amount.value is the
-          // REMAINING captured amount, not the refund amount.
-          const originalPrice = parseFloat(meta?.price || "0")
-          const remainingCaptured = parseFloat(capturedAmount || "0")
-          if (originalPrice <= 0 || Number.isNaN(remainingCaptured)) {
-            console.log(`[paypal webhook] Partial refund: cannot compute ratio, ` +
-              `originalPrice=$${originalPrice}, remainingCaptured=$${capturedAmount}`)
-            processed = true
-            return
-          }
-          const cumulativeRefundUsd = originalPrice - remainingCaptured
-          if (cumulativeRefundUsd <= 0) {
-            console.log(`[paypal webhook] Partial refund: cumulativeRefundUsd=${cumulativeRefundUsd} ≤ 0, skipping`)
-            processed = true
-            return
-          }
-          cumulativeRefundTokens = Math.round(tokenAmount * cumulativeRefundUsd / originalPrice)
-          action = "credits_partially_refunded"
-          console.log(
-            `[paypal webhook] Partial refund: cumulative $${cumulativeRefundUsd.toFixed(2)} of ` +
-            `$${originalPrice.toFixed(2)} → ${cumulativeRefundTokens}/${tokenAmount} credits`
-          )
-        } else {
-          // Full refund (REFUNDED or REVERSED) — all tokens
-          cumulativeRefundTokens = tokenAmount
-        }
-
-        // Step 4: Only deduct the delta (new cumulative − previously processed)
-        const deltaTokens = cumulativeRefundTokens - prevCumulative
-        if (deltaTokens <= 0) {
-          console.log(
-            `[paypal webhook] No new refund: cumulative=${cumulativeRefundTokens}, ` +
-            `prevCumulative=${prevCumulative}, delta=${deltaTokens} — already handled`
-          )
-          processed = true
-          return
-        }
-
-        // Step 5: Lock user row and read current balance (for audit only)
-        const userRows: any[] = await tx.$queryRawUnsafe(
-          `SELECT credits FROM users WHERE id = $1 FOR UPDATE`,
-          creditedTx.user_id
-        )
-        const currentBalance: number = userRows.length ? Number(userRows[0].credits) : 0
-
-        // Step 6: Single SQL deduction — works correctly even when balance
-        // is already negative
-        await tx.$executeRawUnsafe(
-          `UPDATE users SET credits = credits - $1 WHERE id = $2`,
-          deltaTokens, creditedTx.user_id
-        )
-
-        // Audit-only: how much was deducted from positive balance
-        const deducedFromPositive = Math.max(0, Math.min(deltaTokens, currentBalance))
-        const pushedNegative = deltaTokens - deducedFromPositive
-
-        // Step 7: Update tx metadata with cumulative refund tracking.
-        // Replace the entire metadata so stale keys from earlier iterations
-        // don't accumulate (e.g. old status='refunded' that would break re-read).
-        const refundMeta = JSON.stringify({
-          ...meta,
-          refunded: true,
-          lastRefundedAt: refundedAt,
-          cumulativeRefundTokens,
-          prevCumulativeRefundTokens: prevCumulative,
-          deltaTokens,
-          deducedFromPositive,
-          pushedNegative,
-          captureStatus,
-        })
-        await tx.$executeRawUnsafe(
-          `UPDATE transactions SET metadata = $1::jsonb WHERE id = $2`,
-          refundMeta, creditedTx.id
-        )
-
-        processed = true
-
-        if (pushedNegative > 0) {
-          console.error(
-            `[paypal webhook] Refund shortfall: user ${creditedTx.user_id} ` +
-            `owed delta=${deltaTokens}, balance was ${currentBalance}, ` +
-            `${pushedNegative} pushed below zero (cumulative=${cumulativeRefundTokens}/${tokenAmount})`
-          )
-        } else {
-          console.log(
-            `[paypal webhook] Deducted delta=${deltaTokens} credits ` +
-            `(cumulative=${cumulativeRefundTokens}/${tokenAmount}), ` +
-            `user ${creditedTx.user_id}`
-          )
-        }
-      })
-    } catch (err: any) {
-      console.error(`[paypal webhook] Credit refund tx failed:`, err?.message)
-      return NextResponse.json({ error: "Internal error" }, { status: 500 })
-    }
-
-    if (!processed) {
-      // No matching tx found — webhook may have arrived before the COMPLETED
-      // handler finished. Return 404 so PayPal retries (up to 25 times).
-      console.error(
-        `[paypal webhook] Credit refund NOT processed for capture ${captureId} — will retry`
-      )
-      return NextResponse.json(
-        { error: "No matching purchase found for refund" },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({ received: true, processed: true, action })
   }
 
   if (captureStatus !== "COMPLETED") {
