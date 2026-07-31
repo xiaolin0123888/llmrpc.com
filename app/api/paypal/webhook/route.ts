@@ -396,13 +396,13 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
 /**
  * Handle credit refund notifications (PAYMENT.CAPTURE.REFUNDED / REVERSED).
  *
- * PayPal can deliver this with either:
- *   a) Capture resource → status REFUNDED/PARTIALLY_REFUNDED,
- *      amount = original (unchanged),
- *      seller_receivable_breakdown.total_refunded_amount = cumulative refund
- *   b) Refund resource  → status COMPLETED,
- *      amount = this single refund,
- *      links[rel=up] → parent capture
+ * Both Capture (status REFUNDED/PARTIALLY_REFUNDED) and Refund (status
+ * COMPLETED) resources carry seller_receivable_breakdown.total_refunded_amount
+ * — the cumulative refund total. Using this single source of truth eliminates
+ * repeat-deduction risk: if PayPal re-delivers the same notification, the
+ * breakdown is unchanged → delta = 0 → idempotent 200.
+ *
+ * For Refund resources the capture ID is extracted from links[rel=up].
  */
 async function handleCreditRefund(body: PayPalWebhookEvent) {
   const resource = body.resource!
@@ -470,49 +470,32 @@ async function handleCreditRefund(body: PayPalWebhookEvent) {
 
       const originalPrice = parseFloat(meta?.price || "0")
       const prevCumulative = Number(meta?.cumulativeRefundTokens || 0)
-      const prevCumulativeUsd = Number(meta?.cumulativeRefundUsd || 0)
 
-      // Compute cumulative refund in both USD and tokens
+      // Both Capture and Refund resources expose the cumulative refund via
+      // seller_receivable_breakdown.total_refunded_amount — the single source
+      // of truth from PayPal. No manual accumulation, no repeat-deduction risk:
+      // if PayPal re-delivers the same notification the breakdown is unchanged
+      // → delta = 0 → returns 200.
       let cumulativeRefundTokens: number
       let cumulativeRefundUsd: number
 
-      if (isCaptureResource) {
-        // Capture → use seller_receivable_breakdown.total_refunded_amount
-        // (the cumulative total across all refunds on this capture)
-        const breakdownUsd = resource.seller_receivable_breakdown?.total_refunded_amount?.value
-        if (breakdownUsd) {
-          cumulativeRefundUsd = parseFloat(breakdownUsd)
-          cumulativeRefundTokens = originalPrice > 0
-            ? Math.round(tokenAmount * cumulativeRefundUsd / originalPrice)
-            : 0
-          console.log(
-            `[paypal webhook] Capture refund: totalRefunded=$${cumulativeRefundUsd.toFixed(2)} ` +
-            `→ ${cumulativeRefundTokens}/${tokenAmount} credits`
-          )
-        } else {
-          // No breakdown — treat as full refund
-          cumulativeRefundTokens = tokenAmount
-          cumulativeRefundUsd = originalPrice
-          console.log(
-            `[paypal webhook] Capture refund (no breakdown): deducting full ${tokenAmount} credits`
-          )
-        }
-      } else {
-        // Refund resource → resource.amount IS this single refund amount
-        const thisRefundUsd = parseFloat(resource.amount?.value || "0")
-        if (thisRefundUsd <= 0) {
-          console.log(`[paypal webhook] Refund resource: amount=$${thisRefundUsd} ≤ 0, skipping`)
-          processed = true
-          return
-        }
-        // Accumulate with previous
-        cumulativeRefundUsd = prevCumulativeUsd + thisRefundUsd
+      const breakdownUsd = resource.seller_receivable_breakdown?.total_refunded_amount?.value
+      if (breakdownUsd) {
+        cumulativeRefundUsd = parseFloat(breakdownUsd)
         cumulativeRefundTokens = originalPrice > 0
           ? Math.round(tokenAmount * cumulativeRefundUsd / originalPrice)
           : 0
+        const resourceLabel = isCaptureResource ? "Capture" : "Refund"
         console.log(
-          `[paypal webhook] Refund resource: thisRefund=$${thisRefundUsd.toFixed(2)}, ` +
-          `cumulative=$${cumulativeRefundUsd.toFixed(2)} → ${cumulativeRefundTokens}/${tokenAmount} credits`
+          `[paypal webhook] ${resourceLabel} refund: totalRefunded=$${cumulativeRefundUsd.toFixed(2)} ` +
+          `→ ${cumulativeRefundTokens}/${tokenAmount} credits`
+        )
+      } else {
+        // No breakdown — treat as full refund
+        cumulativeRefundTokens = tokenAmount
+        cumulativeRefundUsd = originalPrice
+        console.log(
+          `[paypal webhook] No breakdown on refund, deducting full ${tokenAmount} credits`
         )
       }
 
