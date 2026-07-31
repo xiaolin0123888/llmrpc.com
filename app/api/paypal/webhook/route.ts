@@ -227,28 +227,34 @@ async function handleSubscriptionEvent(body: PayPalWebhookEvent) {
           return  // skip rest of tx
         }
 
-        // Step 2: Re-read subscription WITH lock to get current status
+        // Step 2: Re-read subscription WITH lock to get billing_cycles_completed
+        // Use billing_cycles_completed (not status) to distinguish first payment
+        // from renewals. ACTIVATED can set status to ACTIVE before the first
+        // SALE.COMPLETED arrives, making status-based checks unreliable.
         const lockedSubRows: any[] = await tx.$queryRawUnsafe(
-          `SELECT status FROM subscriptions WHERE id = $1 FOR UPDATE`,
+          `SELECT billing_cycles_completed FROM subscriptions WHERE id = $1 FOR UPDATE`,
           sub.id
         )
-        const currentStatus: string = lockedSubRows.length ? lockedSubRows[0].status : ''
+        const billingCycles: number = lockedSubRows.length ? Number(lockedSubRows[0].billing_cycles_completed) : 0
 
-        // Step 3: Extend period ONLY for renewals.
-        // If sub was not ACTIVE yet, this is the first payment (period already set at creation).
-        // If sub was already ACTIVE, this is a renewal — add one month.
-        if (currentStatus === 'ACTIVE') {
+        // Step 3: Extend period ONLY for renewals (billing cycles > 0).
+        // billing_cycles_completed === 0: first payment, period already set at creation —
+        //   just set ACTIVE and mark first cycle processed.
+        // billing_cycles_completed > 0: renewal — extend period_end by one month.
+        if (billingCycles > 0) {
           await tx.$executeRawUnsafe(
             `UPDATE subscriptions
-             SET current_period_end = current_period_end + INTERVAL '1 month'
+             SET current_period_end = current_period_end + INTERVAL '1 month',
+                 billing_cycles_completed = billing_cycles_completed + 1
              WHERE id = $1 AND paypal_sub_id = $2`,
             sub.id, billingAgreementId
           )
         } else {
-          // First payment — just ensure status is ACTIVE (period was set at creation)
+          // First payment — set ACTIVE and mark first cycle processed
           await tx.$executeRawUnsafe(
             `UPDATE subscriptions
-             SET status = 'ACTIVE'
+             SET status = 'ACTIVE',
+                 billing_cycles_completed = 1
              WHERE id = $1 AND paypal_sub_id = $2`,
             sub.id, billingAgreementId
           )
@@ -400,14 +406,101 @@ async function handleCreditEvent(body: PayPalWebhookEvent) {
   }
 
   if (captureStatus === "REFUNDED" || captureStatus === "REVERSED") {
-    // Credits purchases are non-refundable. Credits are consumed immediately
-    // and upstream API costs are sunk the moment a request is made.
-    console.log(`[paypal webhook] Credit refund/reversal rejected for capture ${captureId} — credits are non-refundable`)
-    return NextResponse.json({
-      received: true,
-      processed: false,
-      reason: "credits_non_refundable",
-    })
+    // Credit purchase refunded — atomic: revoke credits + mark refunded in one tx.
+    // FOR UPDATE prevents concurrent refund processing.
+    // If user spent credits, deduct remaining and allow negative balance
+    // (user must repay before using the service again).
+    const refundedAt = new Date().toISOString()
+    let action = "credits_revoked"
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const txRows: any[] = await tx.$queryRawUnsafe(
+          `SELECT * FROM transactions
+           WHERE type = 'PURCHASE'
+             AND (metadata::jsonb->>'paypalCaptureId' = $1
+                  OR metadata::jsonb->>'orderId' = $1)
+             AND metadata::jsonb->>'status' = 'completed'
+           ORDER BY created_at DESC LIMIT 1
+           FOR UPDATE`,
+          captureId
+        )
+        if (!txRows.length) {
+          console.log(`[paypal webhook] No completed credit tx for refunded capture ${captureId}`)
+          return
+        }
+
+        const creditedTx = txRows[0]
+        const meta = typeof creditedTx.metadata === 'string'
+          ? JSON.parse(creditedTx.metadata)
+          : creditedTx.metadata
+
+        // Skip if already refunded
+        if (meta?.refunded || meta?.status === 'refunded' || meta?.status === 'partial_refunded') {
+          console.log(`[paypal webhook] Credit tx ${creditedTx.id} already refunded, skipping`)
+          return
+        }
+
+        const tokenAmount = Number(meta?.tokens) || 0
+        if (tokenAmount <= 0) return
+
+        // Lock user row and read current balance
+        const userRows: any[] = await tx.$queryRawUnsafe(
+          `SELECT credits FROM users WHERE id = $1 FOR UPDATE`,
+          creditedTx.user_id
+        )
+        const currentBalance: number = userRows.length ? Number(userRows[0].credits) : 0
+
+        const deducted = Math.min(tokenAmount, currentBalance)
+        const shortfall = tokenAmount - deducted
+
+        if (deducted > 0) {
+          await tx.$executeRawUnsafe(
+            `UPDATE users SET credits = credits - $1 WHERE id = $2`,
+            deducted, creditedTx.user_id
+          )
+        }
+
+        if (shortfall > 0) {
+          action = "credits_partial_refunded"
+          // Push balance negative — user consumed credits before refunding,
+          // they must repay before using the service again.
+          await tx.$executeRawUnsafe(
+            `UPDATE users SET credits = credits - $1 WHERE id = $2`,
+            shortfall, creditedTx.user_id
+          )
+          console.error(
+            `[paypal webhook] Refund shortfall: user ${creditedTx.user_id} ` +
+            `owed ${tokenAmount}, balance was ${currentBalance}, ` +
+            `shortfall ${shortfall}, balance now negative`
+          )
+        }
+
+        const refundMeta = JSON.stringify({
+          status: shortfall > 0 ? "partial_refunded" : "refunded",
+          refundedAt,
+          deducted,
+          shortfall,
+          tokenAmount,
+        })
+
+        // Mark transaction as refunded
+        await tx.$executeRawUnsafe(
+          `UPDATE transactions SET metadata = metadata::jsonb || $1::jsonb WHERE id = $2`,
+          refundMeta, creditedTx.id
+        )
+
+        console.log(
+          `[paypal webhook] Deducted ${deducted}/${tokenAmount} credits, ` +
+          `shortfall ${shortfall}, user ${creditedTx.user_id}`
+        )
+      })
+    } catch (err: any) {
+      console.error(`[paypal webhook] Credit refund tx failed:`, err?.message)
+      return NextResponse.json({ error: "Internal error" }, { status: 500 })
+    }
+
+    return NextResponse.json({ received: true, processed: true, action })
   }
 
   if (captureStatus !== "COMPLETED") {

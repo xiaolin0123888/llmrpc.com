@@ -71,6 +71,7 @@ model Subscription {
   currentPeriodEnd   DateTime
   stripeSubId    String?  @unique
   stripeCustomerId String?
+  billingCyclesCompleted Int     @default(0)
   createdAt      DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
