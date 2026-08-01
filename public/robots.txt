@@ -1,0 +1,9 @@
+# LLMRpc robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /admin
+
+Sitemap: https://llmrpc.com/sitemap.xml
