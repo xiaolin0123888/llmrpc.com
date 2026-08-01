@@ -35,14 +35,14 @@ export default async function HomePage() {
         <section style={{ textAlign: 'center' as const, paddingTop: '7rem', paddingBottom: '4rem', maxWidth: 800, margin: '0 auto' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 1rem', borderRadius: 99, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--text-gray)', marginBottom: '2rem' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
-            58 models — always up to date
+            60 models — always up to date
           </div>
           <h1 style={{ fontSize: '3.5rem', fontWeight: 700, color: 'var(--text-dark)', lineHeight: 1.1, marginBottom: '1.2rem', letterSpacing: '-0.02em' }}>
             One API key.<br />
             <span style={{ color: 'var(--primary)' }}>Every AI model.</span>
           </h1>
           <p style={{ fontSize: '1.15rem', color: 'var(--text-gray)', maxWidth: 560, margin: '0 auto 2.5rem', lineHeight: 1.7 }}>
-            Access DeepSeek, Qwen, GLM, and 58 models through a single OpenAI-compatible endpoint. One key. One billing system. Radically simpler.
+            Access DeepSeek, Qwen, GLM, and 60 models through a single OpenAI-compatible endpoint. One key. One billing system. Radically simpler.
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <a className="btn-primary" href="/register" style={{ padding: '0.75rem 2rem', fontSize: '1rem' }}>Start Free →</a>
@@ -68,14 +68,14 @@ export default async function HomePage() {
     }'
 
 $ # Switch models instantly — just change the name
-$ # 58 models: deepseek-v4-pro, deepseek-r1, qwen3.6-27b, kimi-k2.6, glm-5.1...`}
+$ # 60 models: deepseek-v4-pro, deepseek-r1, qwen3.6-27b, kimi-k2.6, glm-5.1...`}
             </pre>
           </div>
         </section>
 
         <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '3rem 2rem', background: 'var(--bg-card)' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '2rem', textAlign: 'center' }}>
-            <div><div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem' }}>58+</div><div style={{ color: 'var(--text-gray)', fontSize: '0.875rem' }}>Models</div></div>
+            <div><div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem' }}>60+</div><div style={{ color: 'var(--text-gray)', fontSize: '0.875rem' }}>Models</div></div>
             <div><div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem' }}>$0.01</div><div style={{ color: 'var(--text-gray)', fontSize: '0.875rem' }}>Per 1K tokens ($1 = 100K cr)</div></div>
             <div><div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem' }}>50+</div><div style={{ color: 'var(--text-gray)', fontSize: '0.875rem' }}>Countries</div></div>
             <div><div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem' }}>99.9%</div><div style={{ color: 'var(--text-gray)', fontSize: '0.875rem' }}>Uptime SLA</div></div>
@@ -86,7 +86,7 @@ $ # 58 models: deepseek-v4-pro, deepseek-r1, qwen3.6-27b, kimi-k2.6, glm-5.1...`
           <div className="section-title" style={{ textAlign: 'center', marginBottom: '3rem' }}>Why developers choose LLMRpc</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', maxWidth: 1100, margin: '0 auto' }}>
             {[
-              { title: 'OpenAI Compatible', desc: 'Drop-in replacement. One line change to access 58 models.' },
+              { title: 'OpenAI Compatible', desc: 'Drop-in replacement. One line change to access 60 models.' },
               { title: 'One Key, All Models', desc: 'No juggling API keys. One balance covers every model.' },
               { title: 'Transparent Pricing', desc: 'Flat credit system. No per-model markups or hidden fees.' },
               { title: 'Real-time Dashboard', desc: 'Track usage, latency, and costs per request. Full audit trail.' },
@@ -118,7 +118,7 @@ $ # 58 models: deepseek-v4-pro, deepseek-r1, qwen3.6-27b, kimi-k2.6, glm-5.1...`
             ))}
           </div>
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <a style={{ color: 'var(--primary)', fontWeight: 500, fontSize: '0.95rem' }} href="/models">View all 58 models →</a>
+            <a style={{ color: 'var(--primary)', fontWeight: 500, fontSize: '0.95rem' }} href="/models">View all 60 models →</a>
           </div>
         </section>
 
@@ -135,6 +135,18 @@ $ # 58 models: deepseek-v4-pro, deepseek-r1, qwen3.6-27b, kimi-k2.6, glm-5.1...`
           </div>
         </section>
       </main>
+
+              <section style={{ padding: '4rem 2rem', textAlign: 'center' as const, background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)' }}>
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#fff', marginBottom: '0.75rem' }}>
+              Invite developers, earn 500K credits each
+            </h2>
+            <p style={{ color: '#93c5fd', fontSize: '1rem', lineHeight: 1.7, marginBottom: '2rem' }}>
+              Share your invite link. They get 1M free credits to start. You get 500K when they verify. No limits.
+            </p>
+            <a className="btn-primary" href="/referrals" style={{ padding: '0.75rem 2rem', fontSize: '1rem', background: '#22c55e', border: 'none' }}>Start Inviting &rarr;</a>
+          </div>
+        </section>
 
       <footer style={{ borderTop: '1px solid var(--border)', padding: '2rem', textAlign: 'center', color: 'var(--text-gray)', fontSize: '0.85rem' }}>
         <div style={{ marginBottom: '0.5rem' }}>
