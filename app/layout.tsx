@@ -52,14 +52,8 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     creator: '@llmrpc',
   },
-  alternates: {
-    canonical: SITE_URL,
-  },
   icons: {
     icon: '/favicon.ico',
-  },
-  verification: {
-    google: undefined, // set after Google Search Console verification
   },
 }
 
@@ -67,7 +61,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* JSON-LD Structured Data */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -78,11 +71,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 name: 'LLMRpc',
                 url: SITE_URL,
                 description: DESCRIPTION,
-                potentialAction: {
-                  '@type': 'SearchAction',
-                  target: `${SITE_URL}/models?q={search_term_string}`,
-                  'query-input': 'required name=search_term_string',
-                },
               },
               {
                 '@context': 'https://schema.org',
@@ -98,36 +86,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   priceCurrency: 'USD',
                   description: 'Free 1,000,000 credits on signup',
                 },
-              },
-              {
-                '@context': 'https://schema.org',
-                '@type': 'FAQPage',
-                mainEntity: [
-                  {
-                    '@type': 'Question',
-                    name: 'What is LLMRpc?',
-                    acceptedAnswer: {
-                      '@type': 'Answer',
-                      text: 'LLMRpc is a unified AI API platform that gives you one API key to access 60+ AI models including DeepSeek, Qwen, GLM, Kimi, and more — all OpenAI-compatible.',
-                    },
-                  },
-                  {
-                    '@type': 'Question',
-                    name: 'How much does LLMRpc cost?',
-                    acceptedAnswer: {
-                      '@type': 'Answer',
-                      text: 'LLMRpc uses a pay-as-you-go credit system. 1 credit = 1 token. $1 = 100,000 credits. All models have the same flat pricing. New users get 1,000,000 free credits on signup.',
-                    },
-                  },
-                  {
-                    '@type': 'Question',
-                    name: 'Is LLMRpc compatible with OpenAI API?',
-                    acceptedAnswer: {
-                      '@type': 'Answer',
-                      text: 'Yes. LLMRpc is a drop-in replacement for the OpenAI API. Just change the base URL to https://llmrpc.com/v1 and use your LLMRpc API key. All your existing OpenAI SDK code works unchanged.',
-                    },
-                  },
-                ],
               },
             ]),
           }}
